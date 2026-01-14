@@ -59,6 +59,7 @@ export class ADHSSimulation {
         this._lastLookAwayMsgAt = 0;
         this._isLookingAway = false;
         this._focusAngleEma = null;
+        this._lookAwayPenaltyActive = false;
 
         // Smartphone Popup Rate-Limit
         this._lastPhonePopupAt = 0;
@@ -83,7 +84,8 @@ export class ADHSSimulation {
         this.professorGain = null;
         this._audioBufferCache = new Map();
         // Globaler Lautstärke-Boost (clamped in output). Werte > 1.0 machen es lauter.
-        this._volumeBoost = 1.5;
+        // (Nur leicht erhoeht, damit nichts clippt.)
+        this._volumeBoost = 1.15;
 
         // Default Config pro Level
         // Frequenzen sind Intervalle (ms): kleiner = häufiger.
@@ -251,16 +253,19 @@ export class ADHSSimulation {
                     bubble.setAttribute('position', `${slot.x + jx} ${slot.y + jy} ${slot.z + jz}`);
                     bubble.__adhsThoughtBubble = true;
                     bubble.__adhsThoughtSlot = slotIndex;
-                    // Wolkenform (Ellipse)
-                    const ellipse = document.createElement('a-sphere');
-                    ellipse.setAttribute('radius', '0.205');
-                    ellipse.setAttribute('scale', '1 0.5 1');
-                    ellipse.setAttribute('color', '#f1f5f9');
-                    // Opaque, damit man dahinterliegende Texte nicht sieht
-                    ellipse.setAttribute('opacity', '1.0');
-                    ellipse.setAttribute('material', 'shader: flat; transparent: false');
-                    bubble.appendChild(ellipse);
-                    // Text: niemals außerhalb der Blase (wrap + maxLines + shrink-to-fit)
+                    // Hintergrund der Sprechblase
+                    // NOTE: Eine flache Plane ist hier robuster als eine "Ellipse"-Sphere,
+                    // weil Troika-Text sonst optisch schnell "ueber den Rand" wirkt.
+                    const bubbleW = 0.52;
+                    const bubbleH = 0.26;
+                    const bg = document.createElement('a-plane');
+                    bg.setAttribute('width', bubbleW.toFixed(3));
+                    bg.setAttribute('height', bubbleH.toFixed(3));
+                    bg.setAttribute('position', '0 0 0');
+                    bg.setAttribute('material', 'shader: flat; color: #f1f5f9; transparent: false');
+                    bubble.appendChild(bg);
+
+                    // Text: niemals ausserhalb der Blase (wrap + maxLines + shrink-to-fit)
                     const clampBubbleText = (value, maxLines, maxCharsPerLine) => {
                         const raw = String(value || '').replace(/\r\n/g, '\n').trim();
                         if (!raw) return '';
@@ -315,22 +320,22 @@ export class ADHSSimulation {
 
                     const bubbleText = document.createElement('a-troika-text');
                     bubbleText.setAttribute('value', wrapped);
-                    // Position slightly under the top of the ellipse so multi-line can't spill visually.
-                    bubbleText.setAttribute('position', '0 0.060 0.216');
-                    // Keep a bit more padding so glyphs don't reach the edge.
-                    bubbleText.setAttribute('max-width', '0.36');
+                    // Centered in the plane -> wirkt sofort "in der Blase".
+                    bubbleText.setAttribute('position', '0 0 0.006');
+                    // Padding: etwas kleiner als Bubble-Plane.
+                    bubbleText.setAttribute('max-width', (bubbleW - 0.10).toFixed(3));
                     bubbleText.setAttribute('font-size', fontSize.toFixed(3));
-                    bubbleText.setAttribute('line-height', '1.10');
+                    bubbleText.setAttribute('line-height', '1.12');
                     bubbleText.setAttribute('align', 'center');
                     bubbleText.setAttribute('anchor', 'center');
                     bubbleText.setAttribute('color', '#334155');
-                    bubbleText.setAttribute('baseline', 'top');
+                    bubbleText.setAttribute('baseline', 'center');
                     bubble.appendChild(bubbleText);
                     // "Gedankenpunkte" (kleine Kreise)
                     for (let i = 1; i <= 3; i++) {
                         const dot = document.createElement('a-sphere');
                         dot.setAttribute('radius', `${0.03 - i*0.006}`);
-                        dot.setAttribute('position', `0 ${-0.09 - i*0.045} ${-0.18 + i*0.06}`);
+                        dot.setAttribute('position', `0 ${-(bubbleH / 2) - 0.02 - i*0.045} ${-0.10 + i*0.05}`);
                         dot.setAttribute('color', '#f1f5f9');
                         dot.setAttribute('opacity', '1.0');
                         dot.setAttribute('material', 'shader: flat; transparent: false');
@@ -593,6 +598,7 @@ export class ADHSSimulation {
             cameraEl.object3D.getWorldPosition(camPos);
             cameraEl.object3D.getWorldDirection(camDir);
             let bestAngleDeg = Infinity;
+            let bestPos = null;
             for (const el of target.els) {
                 if (!el || !el.object3D) continue;
                 el.object3D.getWorldPosition(tgtPos);
@@ -607,7 +613,10 @@ export class ADHSSimulation {
                 if (dot <= 0.02) continue;
 
                 const angleDeg = Math.acos(dot) * (180 / Math.PI);
-                if (angleDeg < bestAngleDeg) bestAngleDeg = angleDeg;
+                if (angleDeg < bestAngleDeg) {
+                    bestAngleDeg = angleDeg;
+                    bestPos = { x: tgtPos.x, y: tgtPos.y, z: tgtPos.z };
+                }
             }
             if (!isFinite(bestAngleDeg)) return null;
 
@@ -615,7 +624,8 @@ export class ADHSSimulation {
             return {
                 angleDeg: bestAngleDeg,
                 thresholdDeg,
-                isLookingAway: bestAngleDeg > thresholdDeg
+                isLookingAway: bestAngleDeg > thresholdDeg,
+                focusTargetPos: bestPos
             };
         } catch (e) {
             return null;
@@ -759,6 +769,7 @@ export class ADHSSimulation {
                 if (!this._isLookingAway) {
                     this._lookAwayMs = 0;
                     this._lastLookAwayMsgAt = now;
+                    this._lookAwayPenaltyActive = false;
                 }
                 this._isLookingAway = true;
                 this._lookAwayMs = (this._lookAwayMs || 0) + lookDt;
@@ -766,6 +777,22 @@ export class ADHSSimulation {
                 // During grace time: track it, but don't punish yet.
                 if ((this._lookAwayMs || 0) < graceMs) {
                     return;
+                }
+
+                // Kontextsensitives Feedback (nur einmal pro "Wegschauen"-Episode, sobald es wirklich zählt)
+                if (!this._lookAwayPenaltyActive) {
+                    this._lookAwayPenaltyActive = true;
+
+                    // Kurzer visueller Impuls: "du driftest weg" (orange)
+                    try { this.createScreenTint(650, '#f59e0b'); } catch (e) {}
+
+                    // Zeige einen dezenten Cue zurück zum Fokus-Ziel (Monitor/Prof/Regal)
+                    try {
+                        const pos = info && info.focusTargetPos;
+                        if (pos && typeof this.createGazeCue === 'function') {
+                            this.createGazeCue(pos.x, pos.y, pos.z, 900);
+                        }
+                    } catch (e) {}
                 }
 
                 // Erst jetzt Feedback + Stress.
@@ -784,12 +811,22 @@ export class ADHSSimulation {
                 const angleFactor = Math.min(2.0, 1.0 + (overshoot / 18));
                 this.stress = clamp01((this.stress || 0) + (baseRatePerSec * dtSec * ramp * angleFactor));
             } else {
+                // Zurueck im Fokus: kurzes positives Feedback
+                if (this._isLookingAway && this._lookAwayPenaltyActive) {
+                    this._actionMsg = 'Zurueck im Fokus ✓';
+                    this._actionMsgUntil = now + 900;
+                    try { this.createScreenTint(450, '#22c55e'); } catch (e) {}
+                    this.stress = clamp01((this.stress || 0) - 0.010);
+                }
+
                 this._isLookingAway = false;
                 this._lookAwayMs = 0;
+                this._lookAwayPenaltyActive = false;
             }
         } else {
             this._isLookingAway = false;
             this._lookAwayMs = 0;
+            this._lookAwayPenaltyActive = false;
         }
 
         // Stress-Drift (spürbar, aber nicht extrem)
@@ -810,6 +847,32 @@ export class ADHSSimulation {
         const inc = base * levelPenalty * kindBonus * reentryFactor * stressFactor;
         if (this.taskState === 'working' || this.taskState === 'hyperfocus') {
             task.progress = Math.min(1, (task.progress || 0) + inc);
+        }
+
+        // Background-Progress: damit man Aufgaben nicht manuell "abhaken" muss.
+        // Nicht-aktive Tasks laufen deutlich langsamer, aber werden ueber Zeit fertig.
+        if (this.tasks && this.tasks.length) {
+            const baseBg = (this.taskState === 'hyperfocus') ? 0.006
+                : (this.taskState === 'working') ? 0.0035
+                : (this.taskState === 'procrastinating') ? 0.0009
+                : 0;
+
+            if (baseBg > 0) {
+                for (let i = 0; i < this.tasks.length; i++) {
+                    if (i === this.activeTaskIndex) continue;
+                    const t = this.tasks[i];
+                    if (!t || t.completed) continue;
+
+                    const tKindBonus = (t.kind === 'deepwork') ? 0.75 : (t.kind === 'chores') ? 0.90 : 1.0;
+                    const bgInc = baseBg * levelPenalty * tKindBonus * stressFactor;
+                    t.progress = Math.min(1, (t.progress || 0) + bgInc);
+
+                    if ((t.progress || 0) >= 1 && !t.completed) {
+                        t.completed = true;
+                        t.progress = 1.0;
+                    }
+                }
+            }
         }
 
         // Zeitblindheit: besonders in Hyperfokus/Arbeit "vergeht" Zeit unbemerkt
@@ -835,6 +898,23 @@ export class ADHSSimulation {
             this.playSoundFile('MultimediaNotify_S011TE.579.wav', { maxDuration: 0.8, volume: 0.5 });
             this._actionMsg = '✓ Task erledigt!';
             this._actionMsgUntil = Date.now() + 2000;
+
+            // Automatisch zur naechsten un-erledigten Aufgabe springen
+            if (this.tasks && this.tasks.length) {
+                const len = this.tasks.length;
+                const startIdx = Math.max(0, Math.min(Number(this.activeTaskIndex) || 0, len - 1));
+                let nextIdx = startIdx;
+                for (let step = 1; step <= len; step++) {
+                    const cand = (startIdx + step) % len;
+                    const tt = this.tasks[cand];
+                    if (tt && !tt.completed) {
+                        nextIdx = cand;
+                        break;
+                    }
+                }
+                this.activeTaskIndex = nextIdx;
+            }
+
             // Kurze Entspannungs-Phase nach Completion
             this.setTaskState('procrastinating', 800 + Math.random() * 1200);
         }
@@ -2464,6 +2544,9 @@ export class ADHSSimulation {
         const tunnelDuration = 5000 + (this._refocusStreak || 0) * 1000; // länger bei Streak
         this.createFocusTunnel(tunnelDuration);
 
+        // Sofort sichtbarer "Reset"-Cue (gruen), damit Refocus auch ohne ToDo-Panel auffaellt.
+        try { this.createScreenTint(700, '#22c55e'); } catch (e) {}
+
         // Sofortiges Aufräumen: aktuelle Ablenkungen "weg"
         try { this.clearAllDistractions(); } catch (e) {}
 
@@ -2817,6 +2900,7 @@ export class ADHSSimulation {
 
         const monitorEl = this.randomChoice(monitorEls);
         const isLeft = monitorEl.getAttribute('id') === 'monitor1';
+        const monitorId = monitorEl.getAttribute('id') || (isLeft ? 'monitor1' : 'monitor2');
 
         const task = this.getActiveTask ? this.getActiveTask() : { kind: 'misc', text: '' };
 
@@ -2904,6 +2988,24 @@ export class ADHSSimulation {
 
         // Kleine Overlay-Card auf dem Monitor
         const card = document.createElement('a-entity');
+
+        // Overlap-Fix: pro Monitor nur eine Micro-Card gleichzeitig.
+        // (Sonst stapeln sich transparente Karten und "Messages" wirken ueberlagert.)
+        try {
+            if (!this._activeMonitorMicroCards) this._activeMonitorMicroCards = new Map();
+            const prev = this._activeMonitorMicroCards.get(monitorId);
+            if (prev && prev.card) {
+                try { if (prev.timer) clearTimeout(prev.timer); } catch (e) {}
+                try {
+                    if (prev.card.parentNode) prev.card.parentNode.removeChild(prev.card);
+                } catch (e) {}
+                try {
+                    const idx = this.visualDistractions.indexOf(prev.card);
+                    if (idx > -1) this.visualDistractions.splice(idx, 1);
+                } catch (e) {}
+            }
+        } catch (e) {}
+
         // Exakt innerhalb der Screen-Plane platzieren (damit nichts "vom Monitor hängt").
         // Screen in desk.html: width=0.56 height=0.315 bei z=0.025
         const screenW = 0.56;
@@ -2924,6 +3026,7 @@ export class ADHSSimulation {
         const z = 0.0265;
         card.setAttribute('position', `${x.toFixed(3)} ${y.toFixed(3)} ${z}`);
         card.setAttribute('rotation', '0 0 0');
+        card.__adhsMonitorMicro = true;
         card.innerHTML = `
             <a-plane width="0.38" height="0.16" material="color:#0b1020; opacity:0.75; transparent:true; shader:flat" position="0 0 0"></a-plane>
             <a-plane width="0.01" height="0.16" material="color:${v.accent}; shader:flat" position="-0.185 0 0.001"></a-plane>
@@ -2971,11 +3074,25 @@ export class ADHSSimulation {
         const baseLifeByLevel = isRefocus ? [0, 1200, 1350, 1500] : [0, 1600, 2300, 3100];
         const jitterByLevel = isRefocus ? [0, 500, 500, 500] : [0, 900, 1100, 1300];
         const life = (baseLifeByLevel[level] || 1800) + Math.random() * (jitterByLevel[level] || 900);
-        setTimeout(() => {
-            if (card.parentNode) card.parentNode.removeChild(card);
-            const idx = this.visualDistractions.indexOf(card);
-            if (idx > -1) this.visualDistractions.splice(idx, 1);
+        const timer = setTimeout(() => {
+            try {
+                if (card.parentNode) card.parentNode.removeChild(card);
+            } catch (e) {}
+            try {
+                const idx = this.visualDistractions.indexOf(card);
+                if (idx > -1) this.visualDistractions.splice(idx, 1);
+            } catch (e) {}
+            try {
+                if (this._activeMonitorMicroCards && this._activeMonitorMicroCards.get(monitorId)?.card === card) {
+                    this._activeMonitorMicroCards.delete(monitorId);
+                }
+            } catch (e) {}
         }, life);
+
+        try {
+            if (!this._activeMonitorMicroCards) this._activeMonitorMicroCards = new Map();
+            this._activeMonitorMicroCards.set(monitorId, { card, timer });
+        } catch (e) {}
     }
 
     // --- Desk: kurzer Flicker/Dim auf einem Monitor (wie Helligkeit schwankt / GPU/Auto-Dimming) ---
@@ -3770,8 +3887,44 @@ export class ADHSSimulation {
 
         const isReentry = (this.environment === 'desk' && this.taskState === 'working' && this.isReentryActive && this.isReentryActive());
 
-        // Task-State Gewichtung (realistischer: beim Prokrastinieren mehr "tempting" Geräusche)
+        // Task-State Gewichtung (realistischer: beim Prokrastinieren mehr "tempting" Geraeusche)
+        // + Szenen-Charakter: manche Soundtypen sollen je Szene/Level haeufiger sein.
         let bag = sounds.slice();
+
+        try {
+            const lvl = Math.max(0, Math.min(3, Number(this.distractionLevel || 0)));
+            if (this.environment === 'hoersaal') {
+                // Hoersaal: mehr Social/Unruhe
+                if (lvl >= 2) bag = bag.concat(
+                    { type: 'cough', name: 'Husten' },
+                    { type: 'whisper', name: 'Fluestern' }
+                );
+                if (lvl >= 3) bag = bag.concat(
+                    { type: 'chairCreak', name: 'Stuhl knarzt' },
+                    { type: 'steps', name: 'Jemand kommt zu spaet' }
+                );
+            } else if (this.environment === 'supermarkt') {
+                // Supermarkt: mehr Crowd/Noise
+                if (lvl >= 2) bag = bag.concat(
+                    { type: 'shoppingCart', name: 'Einkaufswagen rollt' },
+                    { type: 'chatter', name: 'Leute reden' }
+                );
+                if (lvl >= 3) bag = bag.concat(
+                    { type: 'kidCrying', name: 'Kind schreit' },
+                    { type: 'cashRegister', name: 'Kasse piept' }
+                );
+            } else if (this.environment === 'desk') {
+                // Desk: mehr kleine Unterbrechungen
+                if (lvl >= 2) bag = bag.concat(
+                    { type: 'neighborNoise', name: 'Nachbar bohrt' },
+                    { type: 'pcFan', name: 'PC-Luefter dreht auf' }
+                );
+                if (lvl >= 3) bag = bag.concat(
+                    { type: 'phoneVibrate', name: 'Handy vibriert' },
+                    { type: 'mouseClick', name: 'Maus klicken' }
+                );
+            }
+        } catch (e) {}
         if (this.environment === 'desk') {
             if (this.taskState === 'procrastinating') {
                 bag = bag.concat(
@@ -3889,72 +4042,73 @@ export class ADHSSimulation {
 
     // Stift-Klick Sound
     playPenClick(ctx, opts = {}) {
-        this.playSoundFile('PencilWrite_S08OF.380.wav', { maxDuration: 0.4, volume: opts.volume ?? 0.22, pan: opts.pan ?? 0, pos: opts.pos || null });
+        this.playSoundFile('PencilWrite_S08OF.380.wav', { maxDuration: 0.7, volume: opts.volume ?? 0.20, pan: opts.pan ?? 0, pos: opts.pos || null });
     }
 
     // Tastatur tippen
     playKeyboardTyping(ctx, opts = {}) {
-        this.playSoundFile('CD_MACBOOK PRO LAPTOP KEYBOARD 01_10_08_13.wav', { maxDuration: 1.2, volume: opts.volume ?? 0.25, pan: opts.pan ?? 0, pos: opts.pos || null });
+        this.playSoundFile('CD_MACBOOK PRO LAPTOP KEYBOARD 01_10_08_13.wav', { maxDuration: 1.7, volume: opts.volume ?? 0.22, pan: opts.pan ?? 0, pos: opts.pos || null });
     }
 
     // Handy vibriert auf dem Tisch (BZZZZZZ)
     playPhoneVibrate(ctx, opts = {}) {
         // Play real phone vibration sound
-        this.playSoundFile('cell-phone-vibration-352298.mp3', { maxDuration: 0.7, volume: opts.volume ?? 0.35, pan: opts.pan ?? 0, pos: opts.pos || null });
+        this.playSoundFile('cell-phone-vibration-352298.mp3', { maxDuration: 0.9, volume: opts.volume ?? 0.30, pan: opts.pan ?? 0, pos: opts.pos || null });
     }
 
     // Notification-Sound
     playNotificationSound(ctx, opts = {}) {
-        this.playSoundFile('MultimediaNotify_S011TE.579.wav', { maxDuration: 0.8, volume: opts.volume ?? 0.28, pan: opts.pan ?? 0, pos: opts.pos || null });
+        // Wichtig: Smartphone-Notification soll NICHT verlaengert werden.
+        this.playSoundFile('MultimediaNotify_S011TE.579.wav', { maxDuration: 0.8, volume: opts.volume ?? 0.26, pan: opts.pan ?? 0, pos: opts.pos || null });
     }
 
     // Husten (jemand ist krank und du musst es mitbekommen)
     playCough(ctx, opts = {}) {
-        this.playSoundFile('horrible-female-cough-66368.mp3', { maxDuration: 1.0, volume: opts.volume ?? 0.25, pan: opts.pan ?? 0, pos: opts.pos || null });
+        this.playSoundFile('horrible-female-cough-66368.mp3', { maxDuration: 1.4, volume: opts.volume ?? 0.30, pan: opts.pan ?? 0, pos: opts.pos || null });
     }
 
     // Stuhl knarzt (jemand lehnt sich zurück)
     playChairCreak(ctx, opts = {}) {
-        this.playSoundFile('Wood_Creaks_01_BTM00499.wav', { maxDuration: 0.6, volume: opts.volume ?? 0.22, pan: opts.pan ?? 0, pos: opts.pos || null });
+        this.playSoundFile('Wood_Creaks_01_BTM00499.wav', { maxDuration: 1.0, volume: opts.volume ?? 0.20, pan: opts.pan ?? 0, pos: opts.pos || null });
     }
 
     // Tür fällt zu - BUMM!
     playDoorSlam(ctx, opts = {}) {
-        this.playSoundFile('Wood_Creaks_01_BTM00499.wav', { maxDuration: 0.5, volume: opts.volume ?? 0.3, pan: opts.pan ?? 0, pos: opts.pos || null });
+        this.playSoundFile('Wood_Creaks_01_BTM00499.wav', { maxDuration: 0.9, volume: opts.volume ?? 0.32, pan: opts.pan ?? 0, pos: opts.pos || null });
     }
 
     // Schritte (jemand läuft vorbei)
     playSteps(ctx, opts = {}) {
-        this.playSoundFile('WalkWoodFloor_BWU.39.wav', { maxDuration: 1.2, volume: opts.volume ?? 0.25, pan: opts.pan ?? 0, pos: opts.pos || null });
+        this.playSoundFile('WalkWoodFloor_BWU.39.wav', { maxDuration: 1.8, volume: opts.volume ?? 0.22, pan: opts.pan ?? 0, pos: opts.pos || null });
     }
 
     // === NEUE SOUNDS FÜR SCHREIBTISCH ===
     
     // PC-Lüfter dreht auf (Gaming PC halt)
     playPCFan(ctx, opts = {}) {
-        this.playSoundFile('computer-fan-75947.mp3', { maxDuration: 2.0, volume: opts.volume ?? 0.15, pan: opts.pan ?? 0, pos: opts.pos || null });
+        this.playSoundFile('computer-fan-75947.mp3', { maxDuration: 3.0, volume: opts.volume ?? 0.10, pan: opts.pan ?? 0, pos: opts.pos || null });
     }
 
     // Maus klicken (zocken nebenbei)
     playMouseClick(ctx, opts = {}) {
-        this.playSoundFile('CD_MACBOOK PRO LAPTOP KEYBOARD 01_10_08_13.wav', { maxDuration: 0.18, volume: opts.volume ?? 0.16, pan: opts.pan ?? 0, pos: opts.pos || null });
+        this.playSoundFile('CD_MACBOOK PRO LAPTOP KEYBOARD 01_10_08_13.wav', { maxDuration: 0.28, volume: opts.volume ?? 0.14, pan: opts.pan ?? 0, pos: opts.pos || null });
     }
 
     // Nachbar bohrt (klassisch)
     playNeighborNoise(ctx, opts = {}) {
-        this.playSoundFile('neighborhood-noise-background-33025-320959.mp3', { maxDuration: 1.5, volume: opts.volume ?? 0.25, pan: opts.pan ?? 0, pos: opts.pos || null });
+        this.playSoundFile('neighborhood-noise-background-33025-320959.mp3', { maxDuration: 2.4, volume: opts.volume ?? 0.20, pan: opts.pan ?? 0, pos: opts.pos || null });
     }
 
     // === NEUE SOUNDS FÜR HÖRSAAL ===
     
     // Papier raschelt (jemand blättert)
     playPaperRustle(ctx, opts = {}) {
-        this.playSoundFile('SFX,Whispers,Layered,Verb.wav', { maxDuration: 2.2, volume: opts.volume ?? 0.22, pan: opts.pan ?? 0, pos: opts.pos || null });
+        this.playSoundFile('SFX,Whispers,Layered,Verb.wav', { maxDuration: 3.2, volume: opts.volume ?? 0.18, pan: opts.pan ?? 0, pos: opts.pos || null });
     }
 
     // Flüstern (Studierende tuscheln)
     playWhisper(ctx, opts = {}) {
-        this.playSoundFile('SFX,Whispers,Layered,Verb.wav', { maxDuration: 2.0, volume: opts.volume ?? 0.20, pan: opts.pan ?? 0, pos: opts.pos || null });
+        this.playSoundFile('SFX,Whispers,Layered,Verb.wav', { maxDuration: 3.0, volume: opts.volume ?? 0.17, pan: opts.pan ?? 0, pos: opts.pos || null });
     }
 
     // === NEUE SOUNDS FÜR SUPERMARKT ===
@@ -3962,12 +4116,12 @@ export class ADHSSimulation {
     // Durchsage (piep-piep)
     playAnnouncement(ctx, opts = {}) {
         // Kein spezielles Durchsage-Sample vorhanden -> wir nutzen den Supermarkt-Ambience-Track kurz als "Durchsage/PA".
-        this.playSoundFile('supermarket-17823.mp3', { maxDuration: 1.2, volume: opts.volume ?? 0.18, pan: opts.pan ?? 0, pos: opts.pos || null });
+        this.playSoundFile('supermarket-17823.mp3', { maxDuration: 2.0, volume: opts.volume ?? 0.14, pan: opts.pan ?? 0, pos: opts.pos || null });
     }
 
     // Einkaufswagen rollt (metallisches Rumpeln)
     playShoppingCart(ctx, opts = {}) {
-        this.playSoundFile('ShoppingCartTurn_S011IN.548.wav', { maxDuration: 0.8, volume: opts.volume ?? 0.22, pan: opts.pan ?? 0, pos: opts.pos || null });
+        this.playSoundFile('ShoppingCartTurn_S011IN.548.wav', { maxDuration: 1.3, volume: opts.volume ?? 0.24, pan: opts.pan ?? 0, pos: opts.pos || null });
     }
 
     // Kasse piept (Scanner)
@@ -3975,36 +4129,36 @@ export class ADHSSimulation {
         // Scan-Beep: wir verwenden den vorhandenen Notification-Sound als Sample (statt synthetischem Oscillator).
         for (let i = 0; i < 3; i++) {
             setTimeout(() => {
-                this.playSoundFile('MultimediaNotify_S011TE.579.wav', { maxDuration: 0.22, volume: opts.volume ?? 0.20, pan: opts.pan ?? 0, pos: opts.pos || null });
+                this.playSoundFile('MultimediaNotify_S011TE.579.wav', { maxDuration: 0.28, volume: opts.volume ?? 0.20, pan: opts.pan ?? 0, pos: opts.pos || null });
             }, i * 520);
         }
     }
 
     // Kind schreit (hochfrequent)
     playKidCrying(ctx, opts = {}) {
-        this.playSoundFile('baby-crying-463213.mp3', { maxDuration: 1.2, volume: opts.volume ?? 0.20, pan: opts.pan ?? 0, pos: opts.pos || null });
+        this.playSoundFile('baby-crying-463213.mp3', { maxDuration: 1.8, volume: opts.volume ?? 0.30, pan: opts.pan ?? 0, pos: opts.pos || null });
     }
 
     // Viele Schritte (mehrere Leute)
     playFootsteps(ctx, opts = {}) {
-        this.playSoundFile('WalkWoodFloor_BWU.39.wav', { maxDuration: 1.3, volume: opts.volume ?? 0.15, pan: opts.pan ?? 0, pos: opts.pos || null });
+        this.playSoundFile('WalkWoodFloor_BWU.39.wav', { maxDuration: 1.9, volume: opts.volume ?? 0.18, pan: opts.pan ?? 0, pos: opts.pos || null });
     }
 
     // Kühlregal brummt
     playFridgeHum(ctx, opts = {}) {
         // Kein Fridge-Sample vorhanden -> Fan/Hum Sample verwenden.
-        this.playSoundFile('computer-fan-75947.mp3', { maxDuration: 2.5, volume: opts.volume ?? 0.12, pan: opts.pan ?? 0, pos: opts.pos || null });
+        this.playSoundFile('computer-fan-75947.mp3', { maxDuration: 3.5, volume: opts.volume ?? 0.10, pan: opts.pan ?? 0, pos: opts.pos || null });
     }
 
     // Produkt fällt runter (Klonk!)
     playProductDrop(ctx, opts = {}) {
         // Kein Drop-Sample vorhanden -> Holz-Knacken als plausibler "Klonk".
-        this.playSoundFile('Wood_Creaks_01_BTM00499.wav', { maxDuration: 0.35, volume: opts.volume ?? 0.22, pan: opts.pan ?? 0, pos: opts.pos || null });
+        this.playSoundFile('Wood_Creaks_01_BTM00499.wav', { maxDuration: 0.6, volume: opts.volume ?? 0.26, pan: opts.pan ?? 0, pos: opts.pos || null });
     }
 
     // Leute reden (Gemurmel)
     playChatter(ctx, opts = {}) {
-        this.playSoundFile('indistinct-deep-male-mumble-14786.mp3', { maxDuration: 1.2, volume: opts.volume ?? 0.14, pan: opts.pan ?? 0, pos: opts.pos || null });
+        this.playSoundFile('indistinct-deep-male-mumble-14786.mp3', { maxDuration: 1.8, volume: opts.volume ?? 0.12, pan: opts.pan ?? 0, pos: opts.pos || null });
     }
 
     // Benachrichtigung auf dem rechten Monitor anzeigen (nur im Schreibtisch-Szenario)
@@ -4032,6 +4186,16 @@ export class ADHSSimulation {
         const isReentry = (opts && opts.reason === 'reentry') || (this.taskState === 'working' && this.isReentryActive && this.isReentryActive());
         const isRefocus = opts && opts.reason === 'refocus';
         const lvl = this.distractionLevel || 0;
+
+        // Verhindert Overlap/Flicker: waehrend eine Monitor-Notification sichtbar ist,
+        // kommt keine neue nach (sonst konkurrieren mehrere setTimeout-Restore Calls).
+        try {
+            const now = Date.now();
+            const displayMs = 2000;
+            const nextAt = Number(this._monitorNotifNextAllowedAt || 0);
+            if (now < nextAt) return;
+            this._monitorNotifNextAllowedAt = now + displayMs + 120; // kleiner Puffer
+        } catch (e) {}
 
         const base = [
             'Akku bei 20%',
@@ -4111,6 +4275,10 @@ export class ADHSSimulation {
         
         // Random Nachricht auswählen und kurz anzeigen
         const oldValue = taskRight.getAttribute('value');
+        // Stable baseline: wenn wir schon eine Notification angezeigt haben, nicht erneut "oldValue" ueberschreiben.
+        if (typeof this._monitorNotifBaseValue !== 'string') {
+            this._monitorNotifBaseValue = oldValue || '';
+        }
         let pickBag = finalBag;
         try {
             const now = Date.now();
@@ -4132,9 +4300,17 @@ export class ADHSSimulation {
             recentAt.set(String(chosen || ''), now);
         } catch (e) {}
         
-        // Nach 2 Sekunden wieder weg
-        setTimeout(() => {
-            taskRight.setAttribute('value', oldValue || '');
+        // Nach 2 Sekunden wieder weg (Timer vorher abbrechen, damit nichts "zurueckspringt")
+        try {
+            if (this._monitorNotifResetTimer) clearTimeout(this._monitorNotifResetTimer);
+        } catch (e) {}
+        const token = (this._monitorNotifToken = (Number(this._monitorNotifToken) || 0) + 1);
+        this._monitorNotifResetTimer = setTimeout(() => {
+            try {
+                if (token !== this._monitorNotifToken) return;
+                taskRight.setAttribute('value', (typeof this._monitorNotifBaseValue === 'string') ? this._monitorNotifBaseValue : '');
+                this._monitorNotifBaseValue = '';
+            } catch (e) {}
         }, 2000);
     }
 
@@ -4168,7 +4344,7 @@ export class ADHSSimulation {
 
         // Gain Node für Lautstärke-Kontrolle
         this.professorGain = ctx.createGain();
-        this.professorGain.gain.value = 0.12; // Etwas lauter im Hintergrund
+        this.professorGain.gain.value = 0.18; // Lauter, damit es als Reiz klarer wahrnehmbar ist
         // Positional: Professor vorne im Raum
         const professorPos = this.getWorldPosFromCameraOffset({ x: 0.0, y: 1.2, z: -3.2 });
         const professorOut = this.createSpatialOutput(ctx, { volume: 1.0, pan: 0, pos: professorPos });
@@ -4483,8 +4659,14 @@ export class ADHSSimulation {
             try {
                 const source = audioCtx.createBufferSource();
                 source.buffer = audioBuffer;
+
+                // Leicht lauter machen (global), aber sicher clampen.
+                const baseVol = (typeof opts.volume === 'number') ? opts.volume : 0.6;
+                const boost = (typeof this._volumeBoost === 'number' && isFinite(this._volumeBoost)) ? this._volumeBoost : 1.0;
+                const volume = Math.max(0, Math.min(1.0, baseVol * boost));
+
                 const out = this.createSpatialOutput(audioCtx, {
-                    volume: typeof opts.volume === 'number' ? opts.volume : 0.6,
+                    volume,
                     pan: typeof opts.pan === 'number' ? opts.pan : 0,
                     pos: (opts && opts.pos) ? opts.pos : null
                 });
