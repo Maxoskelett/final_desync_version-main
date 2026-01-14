@@ -351,8 +351,22 @@ export function installInput(adhs) {
 			}
 		};
 
-		window.handleTouch27 = function handleTouch27() {};
-		window.handleTouch32 = function handleTouch32() {};
+		window.handleTouch27 = function handleTouch27() {
+			if (!window.adhs) return;
+			if (typeof window.adhs.handleUserRefocus === 'function') {
+				window.adhs.handleUserRefocus();
+				console.log('[ESP32] Refocus (Pin 27)');
+			}
+		};
+
+		window.handleTouch32 = function handleTouch32() {
+			if (!window.adhs) return;
+			if (typeof window.adhs.handleUserGaveIn === 'function') {
+				window.adhs.handleUserGaveIn({ type: 'manual', label: 'Handy/Tab wechseln', severity: 1.0 });
+				console.log('[ESP32] Nachgegeben (Pin 32)');
+			}
+		};
+
 		window.handleTouch33 = function handleTouch33() {};
 	} catch (e) {
 		// ESP32 ist optional
@@ -376,6 +390,42 @@ export function installInput(adhs) {
 			}
 
 			switch (e.key.toLowerCase()) {
+				// Intensität erhöhen: Q (Tastatur) oder Pin 12 (ESP32)
+				case 'q':
+					if (typeof window.handleTouch12 === 'function') {
+						window.handleTouch12();
+						if (typeof window.updateLevelDisplay === 'function') setTimeout(() => window.updateLevelDisplay(), 50);
+					}
+					break;
+				// Intensität verringern: W (Tastatur) oder Pin 13 (ESP32)
+				case 'w':
+					if (typeof window.handleTouch13 === 'function') {
+						window.handleTouch13();
+						if (typeof window.updateLevelDisplay === 'function') setTimeout(() => window.updateLevelDisplay(), 50);
+					}
+					break;
+				// Stopp: E (Tastatur) oder Pin 14 (ESP32)
+				case 'e':
+					if (typeof window.handleTouch14 === 'function') {
+						window.handleTouch14();
+						if (typeof window.updateLevelDisplay === 'function') setTimeout(() => window.updateLevelDisplay(), 50);
+					}
+					break;
+				// Nachgeben: G (Tastatur)
+				case 'g':
+					if (typeof window.adhs.handleUserGaveIn === 'function') {
+						window.adhs.handleUserGaveIn({ type: 'manual', label: 'Handy/Tab wechseln', severity: 1.0 });
+						console.log('[Tastatur] Nachgegeben (G)');
+					}
+					break;
+				// Refocus: R (Tastatur)
+				case 'r':
+					if (typeof window.adhs.handleUserRefocus === 'function') {
+						window.adhs.handleUserRefocus();
+						console.log('[Tastatur] Refocus (R)');
+					}
+					break;
+				// Legacy: 1/2/3 auch noch erlauben
 				case '1':
 					if (typeof window.handleTouch12 === 'function') {
 						window.handleTouch12();
@@ -392,49 +442,6 @@ export function installInput(adhs) {
 					if (typeof window.handleTouch14 === 'function') {
 						window.handleTouch14();
 						if (typeof window.updateLevelDisplay === 'function') setTimeout(() => window.updateLevelDisplay(), 50);
-					}
-					break;
-				case 'g':
-					if (typeof window.adhs.handleUserGaveIn === 'function') {
-						window.adhs.handleUserGaveIn({ type: 'manual', label: 'Handy/Tab wechseln', severity: 1.0 });
-						console.log('[Tastatur] Nachgegeben (G)');
-					}
-					break;
-				case 'r':
-					if (typeof window.adhs.handleUserRefocus === 'function') {
-						window.adhs.handleUserRefocus();
-						console.log('[Tastatur] Refocus (R)');
-					}
-					break;
-				case 'q':
-					if (window.adhs.active && !window.adhs.paused) {
-						window.adhs.paused = true;
-						window.adhs.stop();
-						if (typeof window.updateLevelDisplay === 'function') setTimeout(() => window.updateLevelDisplay(), 50);
-						console.log('[Tastatur] Simulation pausiert');
-					} else if (!window.adhs.active && window.adhs.paused) {
-						window.adhs.start(window.adhs.distractionLevel);
-						window.adhs.paused = false;
-						if (typeof window.updateLevelDisplay === 'function') setTimeout(() => window.updateLevelDisplay(), 50);
-						console.log('[Tastatur] Simulation fortgesetzt');
-					}
-					break;
-				case 'w':
-					if (window.adhs.distractionLevel > 0) {
-						window.adhs.start(window.adhs.distractionLevel - 1);
-						if (typeof window.updateLevelDisplay === 'function') setTimeout(() => window.updateLevelDisplay(), 50);
-						console.log(
-							`[Tastatur] Intensität verringert auf: ${['Aus', 'Leicht', 'Mittel', 'Stark'][window.adhs.distractionLevel - 1]}`
-						);
-					}
-					break;
-				case 'e':
-					if (window.adhs.distractionLevel < 3) {
-						window.adhs.start(window.adhs.distractionLevel + 1);
-						if (typeof window.updateLevelDisplay === 'function') setTimeout(() => window.updateLevelDisplay(), 50);
-						console.log(
-							`[Tastatur] Intensität erhöht auf: ${['Aus', 'Leicht', 'Mittel', 'Stark'][window.adhs.distractionLevel + 1]}`
-						);
 					}
 					break;
 			}

@@ -985,63 +985,64 @@ export class ADHSSimulation {
         const cardBorder = '#ffffff';
         const cardShadow = '#000000';
 
-        // Unten links: To-Do
+        // Unten links: To-Do (größer, besseres Spacing)
         const todoCard = document.createElement('a-entity');
         todoCard.setAttribute('id', 'vr-hud-todo-panel');
         todoCard.setAttribute('position', '-0.58 -0.33 0.01');
         todoCard.innerHTML = `
             <!-- Schatten + Border + Card (helles UI wie das DOM-Overlay) -->
-            <a-plane width="0.888" height="0.540" material="color:${cardShadow}; opacity:0.22; ${commonMat}" position="0.010 -0.010 -0.006"></a-plane>
-            <a-plane width="0.868" height="0.520" material="color:${cardBorder}; opacity:0.62; ${commonMat}" position="0 0 -0.005"></a-plane>
-            <a-plane width="0.86" height="0.512" material="color:${cardBg}; opacity:0.88; ${commonMat}" position="0 0 -0.004"></a-plane>
-            <a-plane width="0.86" height="0.012" material="color:${hudAccent}; opacity:0.92; ${commonMat}" position="0 0.249 0.000"></a-plane>
+            <a-plane width="0.920" height="0.580" material="color:${cardShadow}; opacity:0.22; ${commonMat}" position="0.010 -0.010 -0.006"></a-plane>
+            <a-plane width="0.900" height="0.560" material="color:${cardBorder}; opacity:0.62; ${commonMat}" position="0 0 -0.005"></a-plane>
+            <a-plane width="0.890" height="0.550" material="color:${cardBg}; opacity:0.88; ${commonMat}" position="0 0 -0.004"></a-plane>
+            <a-plane width="0.890" height="0.012" material="color:${hudAccent}; opacity:0.92; ${commonMat}" position="0 0.259 0.000"></a-plane>
 
-            <a-troika-text value="To-Do-Liste" max-width="0.80" font-size="0.040" color="${hudText}" position="-0.34 0.135 0.006" align="left" anchor="left" baseline="center"></a-troika-text>
-            <a-troika-text id="vr-hud-todo-text" value="" max-width="0.82" font-size="0.028" color="${hudMuted}" position="-0.37 0.100 0.006" align="left" anchor="left" baseline="top" line-height="1.16" fill-opacity="0.92"></a-troika-text>
+            <a-troika-text value="📝 To-Do-Liste" max-width="0.82" font-size="0.038" color="${hudText}" position="-0.38 0.150 0.006" align="left" anchor="left" baseline="center"></a-troika-text>
+            <a-troika-text id="vr-hud-todo-text" value="" max-width="0.84" font-size="0.026" color="${hudMuted}" position="-0.38 0.080 0.006" align="left" anchor="left" baseline="top" line-height="1.35" fill-opacity="0.92"></a-troika-text>
         `;
 
-        // Bottom-right: Focus / Level / Stress
+        // Bottom-right: Focus / Level / Stress (größer, besseres Spacing)
         const levelCard = document.createElement('a-entity');
         levelCard.setAttribute('id', 'vr-hud-level-panel');
         levelCard.setAttribute('position', '0.58 -0.33 0.01');
         levelCard.innerHTML = `
-            <a-plane width="0.688" height="0.520" material="color:${cardShadow}; opacity:0.22; ${commonMat}" position="0.010 -0.010 -0.006"></a-plane>
-            <a-plane width="0.668" height="0.500" material="color:${cardBorder}; opacity:0.62; ${commonMat}" position="0 0 -0.005"></a-plane>
-            <a-plane width="0.66" height="0.492" material="color:${cardBg}; opacity:0.88; ${commonMat}" position="0 0 -0.004"></a-plane>
-            <a-plane width="0.66" height="0.012" material="color:${hudAccent}; opacity:0.92; ${commonMat}" position="0 0.236 0.000"></a-plane>
+            <a-plane width="0.720" height="0.580" material="color:${cardShadow}; opacity:0.22; ${commonMat}" position="0.010 -0.010 -0.006"></a-plane>
+            <a-plane width="0.700" height="0.560" material="color:${cardBorder}; opacity:0.62; ${commonMat}" position="0 0 -0.005"></a-plane>
+            <a-plane width="0.690" height="0.550" material="color:${cardBg}; opacity:0.88; ${commonMat}" position="0 0 -0.004"></a-plane>
+            <a-plane width="0.690" height="0.012" material="color:${hudAccent}; opacity:0.92; ${commonMat}" position="0 0.259 0.000"></a-plane>
 
-            <a-troika-text value="ADHS Simulation" max-width="0.62" font-size="0.034" color="${hudText}" position="-0.24 0.140 0.006" align="left" anchor="left" baseline="center"></a-troika-text>
-            <a-troika-text value="Intensität" max-width="0.62" font-size="0.028" color="${hudSubText}" position="-0.24 0.098 0.006" align="left" anchor="left" baseline="center" fill-opacity="0.92"></a-troika-text>
+            <a-troika-text value="🎮 ADHS Sim" max-width="0.64" font-size="0.036" color="${hudText}" position="-0.26 0.155 0.006" align="left" anchor="left" baseline="center"></a-troika-text>
+            
+            <!-- Intensität-Sektion -->
+            <a-troika-text value="Intensität:" max-width="0.64" font-size="0.026" color="${hudSubText}" position="-0.26 0.105 0.006" align="left" anchor="left" baseline="center" fill-opacity="0.88"></a-troika-text>
+            <a-plane id="vr-hud-level-chip-shadow" width="0.290" height="0.095" material="color:#000000; opacity:0.16; ${commonMat}" position="0.155 0.065 -0.003"></a-plane>
+            <a-plane id="vr-hud-level-chip-border" width="0.286" height="0.091" material="color:#ffffff; opacity:0.72; ${commonMat}" position="0.152 0.067 -0.002"></a-plane>
+            <a-plane id="vr-hud-level-chip" width="0.280" height="0.087" material="color:#e2e8f0; opacity:0.92; ${commonMat}" position="0.150 0.070 -0.001"></a-plane>
+            <a-troika-text id="vr-hud-level-chip-text" value="Aus" max-width="0.26" font-size="0.032" color="#0f172a" position="0.150 0.070 0.006" align="center" anchor="center" baseline="center"></a-troika-text>
 
-            <!-- "Chip" wie im DOM-Overlay: Shadow + Border + Fill (id bleibt fürs Update) -->
-            <a-plane id="vr-hud-level-chip-shadow" width="0.272" height="0.112" material="color:#000000; opacity:0.16; ${commonMat}" position="0.148 0.086 -0.003"></a-plane>
-            <a-plane id="vr-hud-level-chip-border" width="0.268" height="0.108" material="color:#ffffff; opacity:0.72; ${commonMat}" position="0.145 0.089 -0.002"></a-plane>
-            <a-plane id="vr-hud-level-chip" width="0.26" height="0.10" material="color:#e2e8f0; opacity:0.92; ${commonMat}" position="0.14 0.094 -0.001"></a-plane>
-            <a-troika-text id="vr-hud-level-chip-text" value="Aus" max-width="0.24" font-size="0.034" color="#0f172a" position="0.14 0.074 0.006" align="center" anchor="center" baseline="center"></a-troika-text>
+            <!-- Task-Info-Sektion -->
+            <a-troika-text id="vr-hud-focus-text" value="" max-width="0.64" font-size="0.022" color="${hudMuted}" position="-0.26 0.010 0.006" align="left" anchor="left" baseline="center" fill-opacity="0.85"></a-troika-text>
+            <a-troika-text id="vr-hud-active-task-text" value="" max-width="0.64" font-size="0.026" color="${hudText}" position="-0.26 -0.028 0.006" align="left" anchor="left" baseline="center"></a-troika-text>
 
-            <a-troika-text id="vr-hud-focus-text" value="" max-width="0.86" font-size="0.024" color="${hudMuted}" position="-0.24 -0.020 0.006" align="left" anchor="left" baseline="center" fill-opacity="0.92"></a-troika-text>
-            <a-troika-text id="vr-hud-active-task-text" value="" max-width="0.86" font-size="0.028" color="${hudText}" position="-0.24 -0.072 0.006" align="left" anchor="left" baseline="center"></a-troika-text>
-
-            <a-plane width="0.52" height="0.030" material="color:#0f172a; opacity:0.10; ${commonMat}" position="-0.01 -0.120 0"></a-plane>
-            <a-plane id="vr-hud-stress-fill" width="0.01" height="0.030" material="color:#10b981; opacity:0.92; ${commonMat}" position="-0.270 -0.120 0.001"></a-plane>
-
-            <a-troika-text id="vr-hud-stress-text" value="Stress: 0%" max-width="0.86" font-size="0.024" color="${hudMuted}" position="-0.24 -0.160 0.006" align="left" anchor="left" baseline="center" fill-opacity="0.92"></a-troika-text>
-            <a-troika-text id="vr-hud-meta-text" value="" max-width="0.86" font-size="0.021" color="${hudMuted}" position="-0.24 -0.196 0.006" align="left" anchor="left" baseline="center" fill-opacity="0.86"></a-troika-text>
+            <!-- Stress-Bar-Sektion -->
+            <a-plane width="0.56" height="0.025" material="color:#0f172a; opacity:0.08; ${commonMat}" position="-0.01 -0.085 0"></a-plane>
+            <a-plane id="vr-hud-stress-fill" width="0.01" height="0.025" material="color:#10b981; opacity:0.92; ${commonMat}" position="-0.270 -0.085 0.001"></a-plane>
+            <a-troika-text id="vr-hud-stress-text" value="Stress: 0%" max-width="0.64" font-size="0.022" color="${hudMuted}" position="-0.26 -0.140 0.006" align="left" anchor="left" baseline="center" fill-opacity="0.85"></a-troika-text>
+            <a-troika-text id="vr-hud-meta-text" value="" max-width="0.64" font-size="0.020" color="${hudMuted}" position="-0.26 -0.185 0.006" align="left" anchor="left" baseline="center" fill-opacity="0.75"></a-troika-text>
         `;
 
-        // Top-left: Scene + message
+        // Top-left: Scene + message (entfernt auf User-Wunsch)
         const envCard = document.createElement('a-entity');
         envCard.setAttribute('id', 'vr-hud-env-panel');
         envCard.setAttribute('position', '-0.58 0.34 0.01');
         envCard.innerHTML = `
-            <a-plane width="0.688" height="0.208" material="color:${cardShadow}; opacity:0.22; ${commonMat}" position="0.010 -0.010 -0.006"></a-plane>
-            <a-plane width="0.668" height="0.188" material="color:${cardBorder}; opacity:0.62; ${commonMat}" position="0 0 -0.005"></a-plane>
-            <a-plane width="0.66" height="0.18" material="color:${cardBg}; opacity:0.88; ${commonMat}" position="0 0 -0.004"></a-plane>
-            <a-plane width="0.66" height="0.012" material="color:${hudAccent}; opacity:0.92; ${commonMat}" position="0 0.083 0.000"></a-plane>
+            <a-plane width="0.720" height="0.220" material="color:${cardShadow}; opacity:0.22; ${commonMat}" position="0.010 -0.010 -0.006"></a-plane>
+            <a-plane width="0.700" height="0.200" material="color:${cardBorder}; opacity:0.62; ${commonMat}" position="0 0 -0.005"></a-plane>
+            <a-plane width="0.690" height="0.190" material="color:${cardBg}; opacity:0.88; ${commonMat}" position="0 0 -0.004"></a-plane>
+            <a-plane width="0.690" height="0.012" material="color:${hudAccent}; opacity:0.92; ${commonMat}" position="0 0.083 0.000"></a-plane>
 
-            <a-circle id="vr-hud-env-dot" radius="0.016" segments="18" material="color:#94a3b8; opacity:0.95; ${commonMat}" position="-0.29 0.040 0"></a-circle>
-            <a-troika-text id="vr-hud-env-title" value="" max-width="0.86" font-size="0.036" color="${hudText}" position="-0.26 0.050 0.006" align="left" anchor="left" baseline="center"></a-troika-text>
-            <a-troika-text id="vr-hud-msg-text" value="" max-width="0.86" font-size="0.030" color="${hudMuted}" position="-0.26 0.010 0.006" align="left" anchor="left" baseline="center" fill-opacity="0.92"></a-troika-text>
+            <a-circle id="vr-hud-env-dot" radius="0.016" segments="18" material="color:#94a3b8; opacity:0.95; ${commonMat}" position="-0.29 0.050 0"></a-circle>
+            <a-troika-text id="vr-hud-env-title" value="" max-width="0.64" font-size="0.034" color="${hudText}" position="-0.26 0.060 0.006" align="left" anchor="left" baseline="center"></a-troika-text>
+            <a-troika-text id="vr-hud-msg-text" value="" max-width="0.64" font-size="0.028" color="${hudMuted}" position="-0.26 0.020 0.006" align="left" anchor="left" baseline="center" fill-opacity="0.90"></a-troika-text>
         `;
 
         root.appendChild(todoCard);
