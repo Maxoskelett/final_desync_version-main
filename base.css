@@ -71,6 +71,17 @@ body.scene-page a-scene {
 	body.scene-page { padding: 0; }
 }
 
+/* 1024x600 & ähnliche "short" Desktop-Displays: lieber oben anfangen statt zentrieren.
+	Sonst kann bei langen Landing-Inhalten der obere Bereich unnötig "weggeschoben" wirken.
+*/
+@media (max-height: 650px) {
+	body:not(.scene-page) {
+		justify-content: flex-start;
+		padding-top: 1rem;
+		padding-bottom: 1rem;
+	}
+}
+
 @media print {
 	body { background: white; }
 }

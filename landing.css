@@ -315,6 +315,45 @@ body.modal-open {
 	.scenario-btn { min-width: auto; flex: 1; padding: 1.5rem 1rem; }
 }
 
+/* Desktop-Optimierung für 1024x600 (und ähnliche kurze Höhen)
+	Ziel: weniger "Luft" und kleinere Typografie, damit die Landing nicht unnötig weit scrollt.
+*/
+@media (min-width: 1024px) and (max-height: 650px) {
+	h1 {
+		font-size: 2.4rem;
+		margin-bottom: 0.6rem;
+	}
+
+	.landing-subtitle {
+		font-size: 1.0rem;
+		margin: 0.6rem 0 1.6rem 0;
+	}
+
+	.info-section {
+		margin: 1.6rem 0;
+		gap: 1.25rem;
+	}
+
+	.edu-section {
+		margin: 1.6rem 0 2.2rem 0;
+	}
+
+	.scenarios {
+		gap: 1.25rem;
+	}
+
+	.scenario-btn {
+		min-height: 170px;
+		padding: 1.8rem 1.4rem;
+		font-size: 1.25rem;
+	}
+
+	.landing-footer {
+		margin-top: 2rem;
+		padding: 1.2rem 0;
+	}
+}
+
 @media print {
 	.scenario-btn { box-shadow: none; border: 1px solid #ccc; }
 }
