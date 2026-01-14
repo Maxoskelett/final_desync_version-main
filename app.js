@@ -12,7 +12,7 @@
 // - Alte Entry-Files (bootstrap.js/page-ui.js/landing.js) können auf dieses verweisen.
 // =============================================================
 
-import { ADHSSimulation } from '../adhs_simulation.js';
+import { ADHSSimulation } from './adhs_simulation.js';
 
 // =============================================================
 // Block: Guards / Mini-Utilities

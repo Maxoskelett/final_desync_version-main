@@ -309,6 +309,21 @@ body.scene-page .app-footer {
 #todo-ui .todo-item.todo-warn { background: rgba(254, 243, 199, 0.78); }
 #todo-ui .todo-item.todo-urgent { background: rgba(254, 226, 226, 0.76); }
 
+#todo-ui .todo-checkbox {
+	font-size: 14px;
+	width: 18px;
+	text-align: center;
+	color: #10b981;
+	font-weight: 800;
+	cursor: pointer;
+	transition: transform 0.15s ease, color 0.15s ease;
+	flex-shrink: 0;
+}
+
+#todo-ui .todo-item:hover .todo-checkbox {
+	transform: scale(1.1);
+}
+
 #todo-ui .todo-icon {
 	font-size: 16px;
 	width: 22px;
@@ -318,6 +333,17 @@ body.scene-page .app-footer {
 #todo-ui .todo-text {
 	color: #334155;
 	font-size: 13px;
+	transition: opacity 0.2s ease, text-decoration 0.2s ease;
+}
+
+#todo-ui .todo-item.is-completed .todo-text {
+	opacity: 0.5;
+	text-decoration: line-through;
+	color: #94a3b8;
+}
+
+#todo-ui .todo-item.is-completed .todo-icon {
+	opacity: 0.4;
 }
 
 #todo-ui .todo-progress {
@@ -325,6 +351,10 @@ body.scene-page .app-footer {
 	font-size: 12px;
 	font-weight: 800;
 	color: rgba(15, 23, 42, 0.55);
+}
+
+#todo-ui .todo-item.is-completed .todo-progress {
+	opacity: 0.4;
 }
 
 #todo-ui .todo-item.is-active {

@@ -11,7 +11,7 @@
   <script src="cc_sdk.min.js" defer></script>
   <script src="vr.js" defer></script>
   <!-- Unified App Entry: Bootstrap + Input + Overlay UI -->
-  <script type="module" src="sim/app.js"></script>
+  <script type="module" src="app.js"></script>
   <link rel="stylesheet" href="base.css">
   <link rel="stylesheet" href="overlay.css">
 </head>
@@ -72,7 +72,7 @@
     <a-plane position="0 5 0" rotation="90 0 0" width="22" height="16" color="#ffffff"></a-plane>
 
     <!-- Leises Hintergrund-Ambiente (startet mit Start-VR Klick) -->
-    <a-entity id="ambience-supermarket" data-play-on-vr="1" sound="src:#snd-supermarket-amb; autoplay:false; loop:true; volume:0.18"></a-entity>
+    <a-entity id="ambience-supermarket" data-play-on-vr="1" sound="src:#snd-supermarket-amb; autoplay:false; loop:true; volume:0.35"></a-entity>
 
     <a-plane position="0 2.5 -8" width="22" height="5" src="#tex-wall-plaster" repeat="5 2"></a-plane>
     <a-plane position="0 2.5 8" rotation="0 180 0" width="22" height="5" src="#tex-wall-plaster" repeat="5 2"></a-plane>

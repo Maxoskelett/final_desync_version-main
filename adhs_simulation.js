@@ -82,6 +82,8 @@ export class ADHSSimulation {
         this.professorAudioContext = null;
         this.professorGain = null;
         this._audioBufferCache = new Map();
+        // Globaler Lautstärke-Boost (clamped in output). Werte > 1.0 machen es lauter.
+        this._volumeBoost = 1.5;
 
         // Default Config pro Level
         // Frequenzen sind Intervalle (ms): kleiner = häufiger.
@@ -130,19 +132,19 @@ export class ADHSSimulation {
     _buildDefaultTasks(env) {
         const byEnv = {
             desk: [
-                { text: 'Hausarbeit weiterschreiben', kind: 'deepwork', progress: 0 },
-                { text: 'Mails beantworten', kind: 'email', progress: 0 },
-                { text: 'Abgabe planen', kind: 'planning', progress: 0 }
+                { text: 'Hausarbeit weiterschreiben', kind: 'deepwork', progress: 0, completed: false },
+                { text: 'Mails beantworten', kind: 'email', progress: 0, completed: false },
+                { text: 'Abgabe planen', kind: 'planning', progress: 0, completed: false }
             ],
             hoersaal: [
-                { text: 'Mitschreiben: Kernaussagen', kind: 'study', progress: 0 },
-                { text: 'Folie verstehen', kind: 'study', progress: 0 },
-                { text: 'Frage formulieren', kind: 'planning', progress: 0 }
+                { text: 'Mitschreiben: Kernaussagen', kind: 'study', progress: 0, completed: false },
+                { text: 'Folie verstehen', kind: 'study', progress: 0, completed: false },
+                { text: 'Frage formulieren', kind: 'planning', progress: 0, completed: false }
             ],
             supermarkt: [
-                { text: 'Einkaufsliste abarbeiten', kind: 'errand', progress: 0 },
-                { text: 'Nichts vergessen', kind: 'planning', progress: 0 },
-                { text: 'Kasse finden', kind: 'errand', progress: 0 }
+                { text: 'Einkaufsliste abarbeiten', kind: 'errand', progress: 0, completed: false },
+                { text: 'Nichts vergessen', kind: 'planning', progress: 0, completed: false },
+                { text: 'Kasse finden', kind: 'errand', progress: 0, completed: false }
             ]
         };
         return (byEnv[env] || byEnv.desk).map(t => ({ ...t }));
@@ -431,9 +433,11 @@ export class ADHSSimulation {
             const icon = isUrgent ? '📚' : (isWarn ? '🛒' : '📝');
             const baseCls = isUrgent ? 'todo-item todo-urgent' : (isWarn ? 'todo-item todo-warn' : 'todo-item');
             const isActive = (this.isFocusModeActive && this.isFocusModeActive()) ? true : (i === this.activeTaskIndex);
-            const cls = isActive ? `${baseCls} is-active` : baseCls;
+            const isCompleted = task.completed ? 'is-completed' : '';
+            const cls = isActive ? `${baseCls} is-active ${isCompleted}` : `${baseCls} ${isCompleted}`;
             const pct = Math.max(0, Math.min(100, Math.round((task.progress || 0) * 100)));
-            html += `<div class="${cls}"><span class="todo-icon">${icon}</span><span class="todo-text">${text}</span><span class="todo-progress">${pct}%</span></div>`;
+            const checkmark = task.completed ? '✓' : '○';
+            html += `<div class="${cls}" data-task-idx="${i}" style="cursor:pointer;" onclick="window.adhs?.completeTask(${i})"><span class="todo-checkbox">${checkmark}</span><span class="todo-icon">${icon}</span><span class="todo-text">${text}</span><span class="todo-progress">${pct}%</span></div>`;
         });
         todoDiv.innerHTML = html;
         this.taskPanel = todoDiv;
@@ -451,12 +455,22 @@ export class ADHSSimulation {
         const text = String(task || '').trim();
         if (!text) return;
         if (this.tasks) {
-            this.tasks.push({ text, kind: 'misc', progress: 0 });
+            this.tasks.push({ text, kind: 'misc', progress: 0, completed: false });
             this.taskList = this.tasks.map(t => t.text);
         } else {
             this.taskList.push(text);
         }
         this.updateTaskPanel();
+    }
+
+    // Aufgabe als erledigt markieren (Toggle)
+    completeTask(idx) {
+        if (this.tasks && idx >= 0 && idx < this.tasks.length) {
+            this.tasks[idx].completed = !this.tasks[idx].completed;
+            this.updateTaskPanel();
+            this.playSoundFile('MultimediaNotify_S011TE.579.wav', { maxDuration: 0.6, volume: 0.3 });
+            return;
+        }
     }
 
     // Aufgabe entfernen (per Index)
@@ -813,14 +827,16 @@ export class ADHSSimulation {
             }
         }
 
-        // Task completion: nächste Aufgabe (realistisch: neue Aufgabe taucht auf)
-        if ((task.progress || 0) >= 1) {
-            task.progress = 0;
-            if (this.tasks && this.tasks.length) {
-                this.activeTaskIndex = (this.activeTaskIndex + 1) % this.tasks.length;
-                this.taskList = this.tasks.map(t => t.text);
-            }
-            this.setTaskState('procrastinating', 1800 + Math.random() * 4200);
+        // Task completion: erreicht 100% → als erledigt markieren + Feedback
+        if ((task.progress || 0) >= 1 && !task.completed) {
+            task.completed = true;
+            task.progress = 1.0;
+            // Celebration-Sound abspielen
+            this.playSoundFile('MultimediaNotify_S011TE.579.wav', { maxDuration: 0.8, volume: 0.5 });
+            this._actionMsg = '✓ Task erledigt!';
+            this._actionMsgUntil = Date.now() + 2000;
+            // Kurze Entspannungs-Phase nach Completion
+            this.setTaskState('procrastinating', 800 + Math.random() * 1200);
         }
 
         this.updateTaskPanel();
@@ -4151,7 +4167,7 @@ export class ADHSSimulation {
 
         // Gain Node für Lautstärke-Kontrolle
         this.professorGain = ctx.createGain();
-        this.professorGain.gain.value = 0.04; // Noch leiser im Hintergrund
+        this.professorGain.gain.value = 0.12; // Etwas lauter im Hintergrund
         // Positional: Professor vorne im Raum
         const professorPos = this.getWorldPosFromCameraOffset({ x: 0.0, y: 1.2, z: -3.2 });
         const professorOut = this.createSpatialOutput(ctx, { volume: 1.0, pan: 0, pos: professorPos });
@@ -4382,7 +4398,8 @@ export class ADHSSimulation {
 
     // Externe Sound-Datei laden und abspielen (mit Zeitlimit)
     createSpatialOutput(ctx, opts = {}) {
-        const volume = typeof opts.volume === 'number' ? opts.volume : 0.6;
+        const baseVolume = typeof opts.volume === 'number' ? opts.volume : 0.6;
+        const volume = Math.min(1.0, baseVolume * (this._volumeBoost || 1.0));
         const pan = typeof opts.pan === 'number' ? Math.max(-1, Math.min(1, opts.pan)) : 0;
         const pos = (opts && opts.pos && typeof opts.pos.x === 'number') ? opts.pos : null;
 
@@ -4443,7 +4460,7 @@ export class ADHSSimulation {
     // Backward-compatible:
     //   playSoundFile(name, 1.2)
     //   playSoundFile(name, {maxDuration, volume, pan})
-    playSoundFile(filename, maxDurationOrOptions = 1.5, maybeOptions = null) {
+    playSoundFile(filename, maxDurationOrOptions = 8.0, maybeOptions = null) {
         const path = `Assets/Textures/sounds/${filename}`;
         const audioCtx = this.getAudioContext();
         if (!audioCtx) return;
@@ -4452,12 +4469,12 @@ export class ADHSSimulation {
         if (!this._audioBufferCache) this._audioBufferCache = new Map();
 
         let opts = {};
-        let maxDuration = 1.5;
+        let maxDuration = 8.0;
         if (typeof maxDurationOrOptions === 'object' && maxDurationOrOptions) {
             opts = maxDurationOrOptions;
-            maxDuration = typeof opts.maxDuration === 'number' ? opts.maxDuration : 1.5;
+            maxDuration = typeof opts.maxDuration === 'number' ? opts.maxDuration : 8.0;
         } else {
-            maxDuration = typeof maxDurationOrOptions === 'number' ? maxDurationOrOptions : 1.5;
+            maxDuration = typeof maxDurationOrOptions === 'number' ? maxDurationOrOptions : 8.0;
             opts = (typeof maybeOptions === 'object' && maybeOptions) ? maybeOptions : {};
         }
 
