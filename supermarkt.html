@@ -71,8 +71,8 @@
     <a-plane id="floorPlane" position="0 0 0" rotation="-90 0 0" width="22" height="16" material="src:#tex-floor; repeat:10 6; metalness:0.0; roughness:0.92" shadow="receive:true"></a-plane>
     <a-plane position="0 5 0" rotation="90 0 0" width="22" height="16" color="#ffffff"></a-plane>
 
-    <!-- Leises Hintergrund-Ambiente (startet mit Start-VR Klick) -->
-    <a-entity id="ambience-supermarket" data-play-on-vr="1" sound="src:#snd-supermarket-amb; autoplay:false; loop:true; volume:0.35"></a-entity>
+    <!-- Leises Hintergrund-Ambiente (startet durch User-Interaktion / Start-VR) -->
+    <a-entity id="ambience-supermarket" data-play-on-vr="1" sound="src:#snd-supermarket-amb; autoplay:false; loop:true; volume:0.18"></a-entity>
 
     <a-plane position="0 2.5 -8" width="22" height="5" src="#tex-wall-plaster" repeat="5 2"></a-plane>
     <a-plane position="0 2.5 8" rotation="0 180 0" width="22" height="5" src="#tex-wall-plaster" repeat="5 2"></a-plane>
@@ -1088,6 +1088,87 @@
         <a-sphere position="0 1.15 0" radius="0.16" color="#f1c27d"></a-sphere>
         <a-animation attribute="position" from="3 0 -5" to="3 0 0" dur="7000" direction="alternate" repeat="indefinite" easing="easeInOutSine"></a-animation>
       </a-entity>
+
+      <!-- Extra Crowd nah an der POV (im selben Gang wie das Rig) -->
+      <a-entity id="crowd-near-pov" shadow="cast:false; receive:false">
+        <!-- stehende Kund:innen im Weg -->
+        <a-entity position="-3.55 0 -1.25" rotation="0 35 0">
+          <a-box position="0 0.55 0" width="0.36" height="0.72" depth="0.25" color="#0ea5e9"></a-box>
+          <a-sphere position="0 1.16 0" radius="0.16" color="#f1c27d"></a-sphere>
+        </a-entity>
+        <a-entity position="-2.55 0 -1.95" rotation="0 -20 0">
+          <a-box position="0 0.55 0" width="0.36" height="0.72" depth="0.25" color="#84cc16"></a-box>
+          <a-sphere position="0 1.16 0" radius="0.16" color="#f1c27d"></a-sphere>
+        </a-entity>
+
+        <!-- Laufende Kund:innen, kreuzen die POV-Achse -->
+        <a-entity position="-3.7 0 -0.4" rotation="0 90 0">
+          <a-box position="0 0.55 0" width="0.35" height="0.7" depth="0.25" color="#fb7185"></a-box>
+          <a-sphere position="0 1.15 0" radius="0.16" color="#f1c27d"></a-sphere>
+          <a-animation attribute="position" from="-3.7 0 -0.4" to="-2.4 0 -0.65" dur="5200" direction="alternate" repeat="indefinite" easing="easeInOutSine"></a-animation>
+        </a-entity>
+        <a-entity position="-2.35 0 -2.8" rotation="0 -90 0">
+          <a-box position="0 0.55 0" width="0.35" height="0.7" depth="0.25" color="#f59e0b"></a-box>
+          <a-sphere position="0 1.15 0" radius="0.16" color="#f1c27d"></a-sphere>
+          <a-animation attribute="position" from="-2.35 0 -2.8" to="-3.55 0 -2.55" dur="6100" direction="alternate" repeat="indefinite" easing="easeInOutSine"></a-animation>
+        </a-entity>
+
+        <!-- jemand bleibt kurz stehen (leichtes Wippen) -->
+        <a-entity position="-3.05 0 -3.4" rotation="0 10 0">
+          <a-box position="0 0.55 0" width="0.36" height="0.72" depth="0.25" color="#a855f7"></a-box>
+          <a-sphere position="0 1.16 0" radius="0.16" color="#f1c27d"></a-sphere>
+          <a-animation attribute="rotation" from="0 10 0" to="0 -10 0" dur="2400" direction="alternate" repeat="indefinite" easing="easeInOutSine"></a-animation>
+        </a-entity>
+
+        <!-- Walker entlang des Gangs (z hoch/runter), damit immer Bewegung da ist -->
+        <a-entity position="-3.15 0 -4.8" rotation="0 0 0">
+          <a-box position="0 0.55 0" width="0.35" height="0.7" depth="0.25" color="#22c55e"></a-box>
+          <a-sphere position="0 1.15 0" radius="0.16" color="#f1c27d"></a-sphere>
+          <a-animation attribute="position" from="-3.15 0 -4.8" to="-3.15 0 4.6" dur="9200" direction="alternate" repeat="indefinite" easing="linear"></a-animation>
+        </a-entity>
+        <a-entity position="-2.85 0 4.6" rotation="0 180 0">
+          <a-box position="0 0.55 0" width="0.35" height="0.7" depth="0.25" color="#3b82f6"></a-box>
+          <a-sphere position="0 1.15 0" radius="0.16" color="#f1c27d"></a-sphere>
+          <a-animation attribute="position" from="-2.85 0 4.6" to="-2.85 0 -4.8" dur="10100" direction="alternate" repeat="indefinite" easing="linear"></a-animation>
+        </a-entity>
+        <a-entity position="-3.0 0 -1.8" rotation="0 90 0">
+          <a-box position="0 0.55 0" width="0.35" height="0.7" depth="0.25" color="#fbbf24"></a-box>
+          <a-sphere position="0 1.15 0" radius="0.16" color="#f1c27d"></a-sphere>
+          <a-animation attribute="position" from="-3.4 0 -1.8" to="-2.6 0 -1.8" dur="3600" direction="alternate" repeat="indefinite" easing="easeInOutSine"></a-animation>
+        </a-entity>
+      </a-entity>
+    </a-entity>
+
+    <!-- Voller Einkaufswagen im Gang (stationär, nicht an der POV) -->
+    <a-entity id="aisle-cart" position="-3.85 0 -1.05" rotation="0 35 0">
+      <!-- Korb / Rahmen -->
+      <a-box position="0 0.33 0" width="0.44" height="0.34" depth="0.58" material="color:#9ca3af; metalness:0.25; roughness:0.65"></a-box>
+      <!-- Innenraum (optisch) -->
+      <a-box position="0 0.35 0" width="0.40" height="0.28" depth="0.52" material="color:#111827; opacity:0.22; transparent:true; shader:flat"></a-box>
+
+      <!-- Korb-Wände (dünn) -->
+      <a-box position="0 0.47 0.29" width="0.44" height="0.24" depth="0.02" material="color:#b0b7c3; metalness:0.25; roughness:0.6"></a-box>
+      <a-box position="0 0.47 -0.29" width="0.44" height="0.24" depth="0.02" material="color:#b0b7c3; metalness:0.25; roughness:0.6"></a-box>
+      <a-box position="0.22 0.47 0" width="0.02" height="0.24" depth="0.58" material="color:#b0b7c3; metalness:0.25; roughness:0.6"></a-box>
+      <a-box position="-0.22 0.47 0" width="0.02" height="0.24" depth="0.58" material="color:#b0b7c3; metalness:0.25; roughness:0.6"></a-box>
+
+      <!-- Griff -->
+      <a-cylinder position="0 0.67 0.30" radius="0.012" height="0.50" rotation="0 0 90" material="color:#1f2937; metalness:0.15; roughness:0.55"></a-cylinder>
+      <a-box position="0 0.67 0.33" width="0.34" height="0.04" depth="0.06" material="color:#374151; roughness:0.8"></a-box>
+
+      <!-- Räder -->
+      <a-cylinder position="-0.17 0.05 0.22" radius="0.05" height="0.03" rotation="90 0 0" color="#111"></a-cylinder>
+      <a-cylinder position="0.17 0.05 0.22" radius="0.05" height="0.03" rotation="90 0 0" color="#111"></a-cylinder>
+      <a-cylinder position="-0.17 0.05 -0.22" radius="0.05" height="0.03" rotation="90 0 0" color="#111"></a-cylinder>
+      <a-cylinder position="0.17 0.05 -0.22" radius="0.05" height="0.03" rotation="90 0 0" color="#111"></a-cylinder>
+
+      <!-- "Voller" Inhalt -->
+      <a-box position="-0.09 0.52 0.05" width="0.12" height="0.18" depth="0.10" material="color:#ef4444; roughness:0.9"></a-box>
+      <a-box position="0.10 0.50 -0.04" width="0.14" height="0.12" depth="0.12" material="color:#22c55e; roughness:0.9"></a-box>
+      <a-cylinder position="0.02 0.56 0.16" radius="0.045" height="0.16" material="color:#f59e0b; roughness:0.85"></a-cylinder>
+      <a-cylinder position="-0.12 0.56 -0.14" radius="0.042" height="0.18" material="color:#3b82f6; roughness:0.85"></a-cylinder>
+      <a-box position="0.14 0.60 0.10" width="0.10" height="0.10" depth="0.18" material="color:#a855f7; roughness:0.9"></a-box>
+      <a-sphere position="-0.02 0.60 -0.02" radius="0.06" material="color:#fde68a; roughness:0.95"></a-sphere>
     </a-entity>
 
     <!-- POV: Start im Regalgang vor Produkten -->

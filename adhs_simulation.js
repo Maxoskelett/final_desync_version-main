@@ -1708,6 +1708,12 @@ export class ADHSSimulation {
                 this.startNeighborhoodNoise();
             }
         }
+
+        // Supermarkt-Ambience läuft bewusst unabhängig von der Intensität,
+        // sobald die Simulation aktiv ist (User-Wunsch: "die ganze Zeit").
+        if (this.environment === 'supermarkt') {
+            this.startSupermarketAmbience();
+        }
         
         // Anzeige updaten
         this.updateStatusDisplay();
@@ -1740,6 +1746,9 @@ export class ADHSSimulation {
         this._hyperfocusUntil = 0;
         // Nachbarschaftsgeräusch stoppen
         this.stopNeighborhoodNoise();
+
+        // Supermarkt-Ambience stoppen
+        this.stopSupermarketAmbience();
         
         console.log('🛑 Simulation gestoppt - endlich Ruhe!');
 
@@ -2261,6 +2270,137 @@ export class ADHSSimulation {
                 this.neighborhoodNoiseAudio.currentTime = 0;
             } catch(e) {}
             this.neighborhoodNoiseAudio = null;
+        }
+    }
+
+    // --- Supermarkt-Ambience (Loop) ---
+    startSupermarketAmbience() {
+        this.stopSupermarketAmbience();
+
+        const filename = 'supermarket-17823.mp3';
+        const path = `Assets/Textures/sounds/${filename}`;
+        const targetVolume = 0.18; // "wie beim Prof" (ähnliche gefühlte Lautstärke)
+
+        // 1) Prefer A-Frame sound component if present (avoids double audio pipelines)
+        try {
+            const el = document.querySelector('#ambience-supermarket');
+            if (el) {
+                // Component may not be ready immediately after start()
+                const tryPlay = () => {
+                    if (!this.active) return true;
+                    try {
+                        el.setAttribute('sound', 'loop', true);
+                        el.setAttribute('sound', 'volume', targetVolume);
+                        if (el.components && el.components.sound && typeof el.components.sound.playSound === 'function') {
+                            el.components.sound.playSound();
+                            this._supermarketAmbienceEl = el;
+                            return true;
+                        }
+                    } catch (e) {}
+                    return false;
+                };
+
+                if (tryPlay()) return;
+
+                // retry a few times (A-Frame init timing)
+                let tries = 0;
+                this._supermarketAmbienceRetryInterval = setInterval(() => {
+                    tries++;
+                    if (tryPlay() || tries >= 25) {
+                        try { clearInterval(this._supermarketAmbienceRetryInterval); } catch (e) {}
+                        this._supermarketAmbienceRetryInterval = null;
+                    }
+                }, 200);
+                return;
+            }
+        } catch (e) {}
+
+        // 2) WebAudio fallback (non-spatial stereo, consistent loop)
+        const ctx = this.getAudioContext();
+        if (ctx) {
+            const out = this.createSpatialOutput(ctx, { volume: 1.0, pan: 0, pos: null });
+            const gain = ctx.createGain();
+            gain.gain.value = targetVolume;
+            gain.connect(out);
+            this._supermarketAmbienceGain = gain;
+
+            const cached = this._audioBufferCache.get(filename);
+            const startLoop = (audioBuffer) => {
+                if (!audioBuffer) return;
+                if (!this.active) return;
+
+                const source = ctx.createBufferSource();
+                source.buffer = audioBuffer;
+                source.loop = true;
+                source.connect(gain);
+                source.start(ctx.currentTime);
+                this._supermarketAmbienceSource = source;
+            };
+
+            if (cached) {
+                startLoop(cached);
+                return;
+            }
+
+            fetch(path)
+                .then(r => r.arrayBuffer())
+                .then(ab => ctx.decodeAudioData(ab))
+                .then(audioBuffer => {
+                    this._audioBufferCache.set(filename, audioBuffer);
+                    startLoop(audioBuffer);
+                })
+                .catch(() => {
+                    // 3) HTMLAudio fallback
+                    const a = new Audio(path);
+                    a.loop = true;
+                    a.volume = targetVolume;
+                    this.supermarketAmbienceAudio = a;
+                    a.play().catch(() => {});
+                });
+            return;
+        }
+
+        // 3) HTMLAudio fallback
+        try {
+            const a = new Audio(path);
+            a.loop = true;
+            a.volume = targetVolume;
+            this.supermarketAmbienceAudio = a;
+            a.play().catch(() => {});
+        } catch (e) {}
+    }
+
+    stopSupermarketAmbience() {
+        if (this._supermarketAmbienceRetryInterval) {
+            try { clearInterval(this._supermarketAmbienceRetryInterval); } catch (e) {}
+            this._supermarketAmbienceRetryInterval = null;
+        }
+
+        if (this._supermarketAmbienceEl && this._supermarketAmbienceEl.components && this._supermarketAmbienceEl.components.sound) {
+            try {
+                if (typeof this._supermarketAmbienceEl.components.sound.stopSound === 'function') {
+                    this._supermarketAmbienceEl.components.sound.stopSound();
+                }
+            } catch (e) {}
+        }
+        this._supermarketAmbienceEl = null;
+
+        if (this._supermarketAmbienceSource) {
+            try { this._supermarketAmbienceSource.stop(); } catch (e) {}
+            try { this._supermarketAmbienceSource.disconnect(); } catch (e) {}
+            this._supermarketAmbienceSource = null;
+        }
+        if (this._supermarketAmbienceGain) {
+            try { this._supermarketAmbienceGain.disconnect(); } catch (e) {}
+            this._supermarketAmbienceGain = null;
+        }
+
+        if (this.supermarketAmbienceAudio) {
+            try {
+                this.supermarketAmbienceAudio.pause();
+                this.supermarketAmbienceAudio.currentTime = 0;
+            } catch (e) {}
+            this.supermarketAmbienceAudio = null;
         }
     }
 
