@@ -6,13 +6,9 @@
 //   - Scene UI (Overlay-Controls + Level-Anzeige + Self-Check)
 //   - Bootstrap (window.adhs erstellen, HUD/Intro installieren)
 //   - Input (Keyboard + ESP32 Touch Handler)
-//
-// Hinweis
-// - Dieses File ist bewusst "side-effecty" (installiert Listener beim Laden).
-// - Alte Entry-Files (bootstrap.js/page-ui.js/landing.js) können auf dieses verweisen.
-// =============================================================
 
-import { ADHSSimulation } from './adhs_simulation.js';
+
+import { ADHSSimulation } from './adhs_simulation.js'; // Kernlogik (Tasks/Stress/Ablenkungen/HUD)
 
 // =============================================================
 // Block: Guards / Mini-Utilities
@@ -59,6 +55,7 @@ function onceGlobal(key, fn) {
 
 function installScenarioButtons() {
 	// Buttons nutzen data-href, damit das HTML ohne Inline-JS auskommt
+	// (Landing + Overlay-Back Button verwenden beide dieses Pattern)
 	document.querySelectorAll('[data-href]').forEach((el) => {
 		el.addEventListener('click', () => {
 			const href = el.getAttribute('data-href');
@@ -68,7 +65,10 @@ function installScenarioButtons() {
 }
 
 function installEduModal() {
-	// Einfaches (semi-)accessibles Modal (aria-hidden + Escape zum Schließen)
+	// Einfaches (semi-)accessibles Modal
+	// - aria-hidden togglen
+	// - Escape schließt
+	// - Klick auf Backdrop schließt
 	const modal = document.getElementById('edu-modal');
 	const openBtn = document.getElementById('edu-open');
 	const closeBtn = document.getElementById('edu-close');
@@ -148,6 +148,8 @@ function updateLevelDisplay() {
 }
 
 function installAdhsControls() {
+	// Overlay-Buttons (DOM) rufen nur Methods auf der Simulation auf.
+	// Die eigentliche Logik sitzt in adhs_simulation.js.
 	const plusBtn = document.getElementById('adhs-btn-plus');
 	const minusBtn = document.getElementById('adhs-btn-minus');
 	const toggleBtn = document.getElementById('adhs-btn-toggle');
@@ -466,11 +468,13 @@ export function installInput(adhs) {
 // =============================================================
 
 function ensureInstance() {
+	// Erstellt GENAU EINE globale Simulation pro Scene-Page.
+	// Danach: installiert Input + setzt Startzustand.
 	try {
 		window.adhsInitError = null;
 	} catch (e) {}
 
-	// Globale Klasse für Debug/Legacy
+	// Globale Klasse für Debug/Legacy (praktisch in der Konsole)
 	try {
 		if (typeof window.ADHSSimulation === 'undefined') {
 			window.ADHSSimulation = ADHSSimulation;
@@ -497,7 +501,7 @@ function ensureInstance() {
 		else console.warn('[ADHS] Failed to install input handlers');
 	}
 
-	// Simulation startet mit Aus
+	// Simulation startet mit Aus (keine Effekte, keine Intervalle)
 	try {
 		window.adhs.stop();
 	} catch (e) {}
@@ -523,6 +527,7 @@ function ensureInstance() {
 
 function installBootstrapIfScenePresent() {
 	// Nur bootstrappen, wenn eine A-Frame Scene vorhanden ist.
+	// (Landingpage hat kein <a-scene> und bekommt daher keine Simulation-Instanz.)
 	if (!document.querySelector('a-scene')) return;
 
 	// Als Module ist Script sowieso defer; wir warten trotzdem auf load,

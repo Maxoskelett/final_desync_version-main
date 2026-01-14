@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Desk VR Environment</title>
     <!-- Scene-Page: A-Frame Umgebung + DOM-Overlay UI + ADHS-Simulation -->
-    <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
-    <script src="https://unpkg.com/aframe-troika-text/dist/aframe-troika-text.min.js"></script>
-    <script src="https://aframe.io/releases/1.7.1/aframe-inspector.min.js"></script>
+    <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script> <!-- 3D Scene Engine (WebXR) -->
+    <script src="https://unpkg.com/aframe-troika-text/dist/aframe-troika-text.min.js"></script> <!-- scharfer Text in VR -->
+    <script src="https://aframe.io/releases/1.7.1/aframe-inspector.min.js"></script> <!-- Debug (optional) -->
     <script src="cc_sdk.min.js" defer></script>
-    <script src="vr.js" defer></script>
+    <script src="vr.js" defer></script> <!-- Start-VR Button + PointerLock (Mouselook) -->
     <!-- Unified App Entry: Bootstrap + Input + Overlay UI -->
     <script type="module" src="app.js"></script>
     <link rel="stylesheet" href="base.css">
@@ -47,6 +47,7 @@
     </header>
 
     <main>
+    <!-- webxr dom-overlay: das HTML-Overlay (#ui-overlay) kann im Headset sichtbar bleiben -->
     <a-scene id="scene-desk"
         background="color: #0f172a"
         renderer="antialias: true; colorManagement: true; physicallyCorrectLights: true; exposure: 1.25"
@@ -405,7 +406,8 @@
         <!-- VR Rig: POV sitzt vor dem Schreibtisch auf Stuhlhöhe -->
         <!-- Kamera: direkt vor den Monitoren -->
         <a-entity id="rig" position="0.118 -0.92 -3.15" rotation="0 0 0">
-            <a-camera id="camera" look-controls="pointerLockEnabled: false" wasd-controls="enabled: false"></a-camera>
+            <!-- Kamera: Umschauen per Maus (PointerLock). WASD aus (kein Laufen). -->
+            <a-camera id="camera" look-controls="pointerLockEnabled: true" wasd-controls="enabled: false"></a-camera>
         </a-entity>
 
     </a-scene>

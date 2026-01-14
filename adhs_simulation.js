@@ -9,36 +9,46 @@
 // - Globaler Bootstrap: erstellt window.adhs und initialisiert
 // =============================================================
 
+// =============================================================
+// Schnellnavigation (wichtige Einstiegsstellen)
+// - start(level) / stop(): Lifecycle (Simulation an/aus)
+// - tickTaskLoop(): Task-Logik (Prokrastination/Working/Hyperfokus)
+// - spawnVisualDistraction() / playAudioDistraction() / createLargePopup(): Ablenkungen
+// - handleUserGaveIn() / handleUserRefocus(): Input → sicht-/messbares Feedback
+// - installVrHudOnce() / createVrHud() / updateVrHud(): Overlay vs. VR-HUD
+// - startSupermarketAmbience(): Supermarkt-Ambiente (durchgehender Loop)
+// =============================================================
+
 
 export class ADHSSimulation {
 
     constructor() {
-        // Basis-Zustand
-        this.environment = this.detectEnvironment();
-        this.active = false;
-        this.paused = false;
-        this.distractionLevel = 0;
+        // Basis-Zustand (Environment kommt aus der Scene-URL)
+        this.environment = this.detectEnvironment(); // 'desk' | 'hoersaal' | 'supermarkt'
+        this.active = false; // Simulation läuft (Effekte/Tasks aktiv)
+        this.paused = false; // „Stop“ gedrückt / pausiert
+        this.distractionLevel = 0; // 0..3 (Aus/Leicht/Mittel/Stark)
 
-        // Timers/Intervals
-        this.visualInterval = null;
-        this.audioInterval = null;
-        this.notificationInterval = null;
-        this._taskTickInterval = null;
+        // Timers/Intervals (werden in start() gesetzt und in stop() aufgeräumt)
+        this.visualInterval = null; // visuelle Ablenkungen spawnen
+        this.audioInterval = null; // Sound-Ablenkungen abspielen
+        this.notificationInterval = null; // Handy/Notifications
+        this._taskTickInterval = null; // Task-Loop (tickTaskLoop)
 
-        // Collections
-        this.visualDistractions = [];
-        this.taskPanel = null;
+        // Collections (damit wir alles sauber entfernen können)
+        this.visualDistractions = []; // aktive A-Frame Entities (Popups, Blasen, etc.)
+        this.taskPanel = null; // DOM Panel im Overlay
 
-        // Aufgabe/Status
-        this.tasks = this._buildDefaultTasks(this.environment);
-        this.taskList = (this.tasks || []).map(t => t.text);
-        this.activeTaskIndex = 0;
-        this.taskState = 'idle';
-        this.taskStateUntil = 0;
+        // Tasks / Status (leicht „spielifiziert“, damit Effekte sichtbar werden)
+        this.tasks = this._buildDefaultTasks(this.environment); // Default-Tasks je Umgebung
+        this.taskList = (this.tasks || []).map(t => t.text); // nur Texte (Legacy/UI)
+        this.activeTaskIndex = 0; // welche Task gerade „aktiv“ ist
+        this.taskState = 'idle'; // 'idle' | 'procrastinating' | 'working' | 'hyperfocus'
+        this.taskStateUntil = 0; // Timestamp: wann ein State automatisch endet
 
-        // Psychologie/Meta
-        this.stress = 0;
-        this._totalTimeWasted = 0;
+        // Psychologie/Meta (vereinfachtes Modell)
+        this.stress = 0; // 0..1, beeinflusst z.B. Pile-Up
+        this._totalTimeWasted = 0; // Sekunden (für Summary)
         this._giveInCount = 0;
         this._giveInSpiralMultiplier = 1.0;
         this._refocusStreak = 0;
@@ -53,7 +63,7 @@ export class ADHSSimulation {
         this._actionMsg = '';
         this._actionMsgUntil = 0;
 
-        // Blick/Fokus Heuristik ("wegschauen" -> Stress)
+        // Blick/Fokus Heuristik ("wegschauen" -> Stress/Feedback)
         this._lookAwayMs = 0;
         this._lookAwayLastAt = 0;
         this._lastLookAwayMsgAt = 0;
@@ -61,7 +71,7 @@ export class ADHSSimulation {
         this._focusAngleEma = null;
         this._lookAwayPenaltyActive = false;
 
-        // Smartphone Popup Rate-Limit
+        // Smartphone Popup Rate-Limit (damit es nicht „unfair“ spammt)
         this._lastPhonePopupAt = 0;
         this._phonePopupMinMs = 10000;
 
@@ -75,7 +85,7 @@ export class ADHSSimulation {
         this._lastPhoneTodoAt = 0;
         this._phoneTodoMinMs = 28000;
 
-        // Habituation
+        // Habituation (Wiederholung soll weniger „Impact“ haben)
         this._habituation = new Map();
 
         // Audio
@@ -262,7 +272,8 @@ export class ADHSSimulation {
                     bg.setAttribute('width', bubbleW.toFixed(3));
                     bg.setAttribute('height', bubbleH.toFixed(3));
                     bg.setAttribute('position', '0 0 0');
-                    bg.setAttribute('material', 'shader: flat; color: #f1f5f9; transparent: false');
+                    // Immer vor der Szene rendern (nicht durch Regale/Objekte verdeckt)
+                    bg.setAttribute('material', 'shader: flat; color: #f1f5f9; transparent: false; depthTest: false; depthWrite: false');
                     bubble.appendChild(bg);
 
                     // Text: niemals ausserhalb der Blase (wrap + maxLines + shrink-to-fit)
@@ -338,11 +349,28 @@ export class ADHSSimulation {
                         dot.setAttribute('position', `0 ${-(bubbleH / 2) - 0.02 - i*0.045} ${-0.10 + i*0.05}`);
                         dot.setAttribute('color', '#f1f5f9');
                         dot.setAttribute('opacity', '1.0');
-                        dot.setAttribute('material', 'shader: flat; transparent: false');
+                        dot.setAttribute('material', 'shader: flat; transparent: false; depthTest: false; depthWrite: false');
                         bubble.appendChild(dot);
                     }
                     camera.appendChild(bubble);
                     this.visualDistractions.push(bubble);
+
+                    // Troika-Text erstellt sein Mesh async -> renderOrder/depth settings mehrfach anwenden.
+                    const applyOrdering = () => {
+                        try {
+                            if (!bubble || !bubble.object3D) return;
+                            bubble.object3D.traverse((o) => {
+                                o.renderOrder = 1300;
+                                if (o.material) {
+                                    o.material.depthTest = false;
+                                    o.material.depthWrite = false;
+                                }
+                            });
+                        } catch (e) {}
+                    };
+                    setTimeout(applyOrdering, 0);
+                    setTimeout(applyOrdering, 120);
+                    setTimeout(applyOrdering, 450);
 
                     // Interaktion: Wenn man die Gedankenblase anklickt, "geht man dem Gedanken nach"
                     // -> Prokrastination/Stress steigen durch User-Aktion (nicht nur random).
@@ -652,8 +680,19 @@ export class ADHSSimulation {
         }
     }
 
+    // =============================================================
+    // Task Loop (Herzstück der „ADHS-Mechanik“)
+    // Läuft ca. alle 0,9s und simuliert den inneren Ablauf:
+    // - idle → procrastinating: „Anfangen ist schwer“
+    // - working: Fortschritt steigt (aber Unterbrechungen passieren)
+    // - hyperfocus: selten, aber schneller Fortschritt („Tunnel“)
+    // Zusätzlich:
+    // - Look-away Heuristik: Wegschauen von „Fokus-Zielen“ erhöht Stress
+    // - Refocus-/GiveIn-Events verändern State, Stress und Progress
+    // =============================================================
     tickTaskLoop() {
         if (!this.active || this.paused || this.distractionLevel <= 0) {
+            // Wenn die Simulation aus ist: alle temporären Effekte/States zurücksetzen (sonst "hängen" Cues beim nächsten Start).
             this.taskState = 'idle';
             this._hyperfocusUntil = 0;
             this._reentryUntil = 0;
@@ -674,6 +713,7 @@ export class ADHSSimulation {
 
         // Initial: erst mal "Starten" fällt schwer
         if (this.taskState === 'idle') {
+            // Initiationsbarriere: das System startet fast immer mit Prokrastination.
             this.setTaskState('procrastinating', 3500 + Math.random() * 6500);
             return;
         }
@@ -684,7 +724,7 @@ export class ADHSSimulation {
                 // Wieder reinfinden ist schwer: nach Prokrastination kurze Re-Entry-Phase
                 const reentryByLevel = [0, 1800, 2600, 3400];
                 this._reentryUntil = now + (reentryByLevel[level] || 2400) + Math.random() * 1200;
-                this.setTaskState('working', 0);
+                this.setTaskState('working', 0); // Zurück in "Working" – aber mit Re-Entry-Kosten im Hintergrund.
                 // Direkt nach dem "Anfangen" kommt oft sofort ein kleiner Reiz
                 if (this.environment === 'desk') this.createMonitorMicroDistraction({ reason: 'reentry' });
                 else this.showNotification({ reason: 'reentry' });
@@ -715,7 +755,7 @@ export class ADHSSimulation {
             // Unterbrechung fühlt sich nachher wie "wieder neu anfangen" an
             const reentryByLevel = [0, 2200, 3200, 4400];
             this._reentryUntil = now + (reentryByLevel[level] || 3200) + Math.random() * 1600;
-            this.stress = clamp01((this.stress || 0) + (0.06 + 0.03 * level));
+            this.stress = clamp01((this.stress || 0) + (0.06 + 0.03 * level)); // Task-Switching-Kosten: Stress steigt durch Unterbrechung.
             this.setTaskState('procrastinating', 2200 + Math.random() * 5200);
             // "Reiz" sofort sichtbar machen
             if (this.environment === 'desk') this.createMonitorMicroDistraction({ reason: 'interrupt' });
@@ -923,7 +963,12 @@ export class ADHSSimulation {
         this.updateVrHud();
     }
 
-    // --- VR HUD fallback ---
+    // =============================================================
+    // VR UI: DOM-Overlay vs. VR-HUD (Fallback)
+    // - Wenn WebXR DOM-Overlay verfügbar ist, bleibt #ui-overlay im Headset sichtbar.
+    // - Wenn nicht, bauen wir ein kleines HUD als A-Frame Entities an die Kamera.
+    // - Zusätzlich togglen wir html.in-vr, damit CSS (Overlay ausblenden, Cursor weg) greift.
+    // =============================================================
     installVrHudOnce() {
         if (this._vrHudInstalled) return;
 
@@ -959,11 +1004,13 @@ export class ADHSSimulation {
                 } catch (e) {}
 
                 if (inVr) {
+                    // Marker für CSS: "wir sind in VR" (z.B. Buttons ausblenden, Cursor verstecken)
                     try { document.documentElement.classList.add('in-vr'); } catch (e) {}
                     return;
                 }
 
                 // Zurück im Desktop: Klasse entfernen und VR-HUD wegräumen (außer Debug-HUD ist explizit an).
+                // Zurück in Desktop: VR-Marker entfernen
                 try { document.documentElement.classList.remove('in-vr'); } catch (e) {}
                 if (!this._vrHudDebug) {
                     this._vrInterfaceMode = null;
@@ -985,6 +1032,14 @@ export class ADHSSimulation {
 
         scene.addEventListener('enter-vr', () => {
             try { document.documentElement.classList.add('in-vr'); } catch (e) {}
+
+            // VR-Starthinweis: als echtes VR-Panel (nicht DOM), damit er unabhängig von dom-overlay zuverlässig ist.
+            // (Wird bei jedem VR-Start kurz eingeblendet und verschwindet automatisch.)
+            try {
+                setTimeout(() => this.showVrStartHint({ autoHideMs: 6500 }), 350);
+                setTimeout(() => this.showVrStartHint({ autoHideMs: 6500 }), 1400);
+            } catch (e) {}
+
             // Nach Session-Start prüfen, ob DOM-Overlay wirklich aktiv ist.
             // Einige Browser/Headsets schalten das Overlay verzögert frei -> daher mehrfach prüfen.
             const refreshMode = () => {
@@ -1032,7 +1087,107 @@ export class ADHSSimulation {
             try { document.documentElement.classList.remove('in-vr'); } catch (e) {}
             this._vrInterfaceMode = null;
             this.removeVrHud();
+
+            // Falls der Hint gerade sichtbar ist: sauber entfernen.
+            try {
+                const old = document.getElementById('adhs-vr-start-hint');
+                if (old && old.parentNode) old.parentNode.removeChild(old);
+            } catch (e) {}
         });
+    }
+
+    showVrStartHint(opts = {}) {
+        try {
+            const scene = document.querySelector('a-scene');
+            const camera = document.querySelector('a-camera') || document.querySelector('[camera]') || (scene && scene.camera && scene.camera.el);
+            if (!camera) {
+                setTimeout(() => this.showVrStartHint(opts), 200);
+                return;
+            }
+
+            const autoHideMs = Math.max(2500, Math.min(20000, Number(opts.autoHideMs) || 9000));
+
+            const env = this.environment || this.detectEnvironment();
+            const envTitle = {
+                desk: 'Schreibtisch',
+                hoersaal: 'Hörsaal',
+                supermarkt: 'Supermarkt'
+            }[env] || 'Simulation';
+
+            // Remove old (damit es bei mehrfachen Triggers nicht stapelt)
+            try {
+                const old = document.getElementById('adhs-vr-start-hint');
+                if (old && old.parentNode) old.parentNode.removeChild(old);
+            } catch (e) {}
+
+            const panel = document.createElement('a-entity');
+            panel.setAttribute('id', 'adhs-vr-start-hint');
+            panel.setAttribute('position', '0 0.18 -1.05');
+            panel.setAttribute('scale', '1 1 1');
+
+            const bg = document.createElement('a-plane');
+            bg.setAttribute('width', '1.30');
+            bg.setAttribute('height', '0.48');
+            bg.setAttribute('position', '0 0 0');
+            bg.setAttribute('material', 'shader:flat; transparent:true; opacity:0.82; color:#0b1220; depthTest:false; depthWrite:false');
+
+            const title = document.createElement('a-troika-text');
+            title.setAttribute('value', `Kurzinfo – ${envTitle}`);
+            title.setAttribute('max-width', '1.22');
+            title.setAttribute('font-size', '0.048');
+            title.setAttribute('color', '#e2e8f0');
+            title.setAttribute('position', '-0.60 0.190 0.01');
+            title.setAttribute('align', 'left');
+            title.setAttribute('anchor', 'left');
+            title.setAttribute('baseline', 'center');
+
+            const body = document.createElement('a-troika-text');
+            body.setAttribute(
+                'value',
+                'Diese Simulation soll zeigen: ADHS ist mehr als „schlecht konzentrieren“.\n'
+                + '• Starten & Planen können schwer sein.\n'
+                + '• Reizfilter kostet Energie (viele Reize gleichzeitig).\n'
+                + '• Wiedereinstieg nach Unterbrechungen ist teuer.\n'
+                + '• Zeitblindheit & Stress verstärken das.\n'
+                + 'Tasten: R=Refocus • G=Nachgegeben • O=Start/Stop • +/-=Intensität'
+            );
+            body.setAttribute('max-width', '1.22');
+            body.setAttribute('font-size', '0.030');
+            body.setAttribute('line-height', '1.20');
+            body.setAttribute('color', '#cbd5e1');
+            body.setAttribute('position', '-0.60 0.130 0.01');
+            body.setAttribute('align', 'left');
+            body.setAttribute('anchor', 'left');
+            body.setAttribute('baseline', 'top');
+
+            panel.appendChild(bg);
+            panel.appendChild(title);
+            panel.appendChild(body);
+            camera.appendChild(panel);
+
+            // Sicherstellen, dass das Panel vor Welt-Geometrie gerendert wird.
+            const applyOrdering = () => {
+                try {
+                    panel.object3D.traverse((o) => {
+                        o.renderOrder = 1250;
+                        if (o.material) {
+                            o.material.depthTest = false;
+                            o.material.depthWrite = false;
+                            o.material.transparent = true;
+                        }
+                    });
+                } catch (e) {}
+            };
+            setTimeout(applyOrdering, 0);
+            setTimeout(applyOrdering, 250);
+            setTimeout(applyOrdering, 900);
+
+            setTimeout(() => {
+                try { if (panel && panel.parentNode) panel.parentNode.removeChild(panel); } catch (e) {}
+            }, autoHideMs);
+        } catch (e) {
+            // ignorieren
+        }
     }
 
     createVrHud() {
@@ -1441,7 +1596,7 @@ export class ADHSSimulation {
     toggleVrHudDebug() {
         this.setVrHudDebugEnabled(!this._vrHudDebug);
     }
-        // --- ALLE SOUNDS AUS DEM SOUNDS-ORDNER ---
+        // --- ALLE SOUNDS  ---
         playSound_keyboard(ctx) {
             this.playSoundFile('CD_MACBOOK PRO LAPTOP KEYBOARD 01_10_08_13.wav', 1.2);
         }
@@ -1488,7 +1643,11 @@ export class ADHSSimulation {
             this.playSoundFile('supermarket-17823.mp3', 1.5);
         }
 
-    // Erkennt in welcher Umgebung wir sind (über URL)
+    // =============================================================
+    // Umgebung / Szene
+    // - Wir nutzen separate HTML-Seiten pro Szene (desk/hoersaal/supermarkt).
+    // - Die Environment-Auswahl erfolgt daher simpel über die URL.
+    // =============================================================
     detectEnvironment() {
         const url = window.location.href;
         if (url.includes('desk.html')) return 'desk';
@@ -1571,9 +1730,27 @@ export class ADHSSimulation {
         } catch (e) {}
     }
 
-    // Simulation starten
+    // =============================================================
+    // Simulation Lifecycle
+    // start(level)
+    // - level 0 = Aus
+    // - level 1..3 = steigende Reiz-Dichte (Intervalle/Chancen)
+    // - Initialisiert Intervalle (Visual/Audio/Notifications) + Task-Ticking
+    // - Entsperrt Audio (Autoplay-Policy: nur durch User-Geste)
+    // =============================================================
     start(level = 0) {
         const clampedLevel = Math.max(0, Math.min(3, Number(level) || 0));
+
+        // Wenn eine neue Session gestartet wird, darf keine alte Summary "stehen bleiben".
+        // (Auto-Hide Timings können sonst überlappen, v.a. beim schnellen Neustart.)
+        try {
+            const domSummary = document.getElementById('adhs-session-summary');
+            if (domSummary && domSummary.parentNode) domSummary.parentNode.removeChild(domSummary);
+        } catch (e) {}
+        try {
+            const vrSummary = document.getElementById('adhs-vr-session-summary');
+            if (vrSummary && vrSummary.parentNode) vrSummary.parentNode.removeChild(vrSummary);
+        } catch (e) {}
 
         // Immer erst sauber aufräumen
         this.stop({ silent: true });
@@ -1721,7 +1898,10 @@ export class ADHSSimulation {
         this.updateVrHud();
     }
 
-    // Alles stoppen
+    // stop()
+    // - räumt Intervalle/Audio auf
+    // - entfernt visuelle Ablenkungen + Panels
+    // - optional: zeigt eine kurze Summary der Session (Zeitverlust/Stress)
     stop(opts = {}) {
         const options = (typeof opts === 'object' && opts) ? opts : { silent: !!opts };
         const wasActive = !!this.active;
@@ -1902,7 +2082,7 @@ export class ADHSSimulation {
 
             const bg = document.createElement('a-plane');
             bg.setAttribute('width', '1.15');
-            bg.setAttribute('height', '0.52');
+            bg.setAttribute('height', '0.56');
             bg.setAttribute('position', '0 0 0');
             bg.setAttribute('material', 'shader:flat; transparent:true; opacity:0.80; color:#0b1220; depthTest:false; depthWrite:false');
 
@@ -1929,7 +2109,7 @@ export class ADHSSimulation {
             body.setAttribute('value', txt);
             body.setAttribute('max-width', '1.05');
             body.setAttribute('font-size', '0.040');
-            body.setAttribute('line-height', '0.060');
+            body.setAttribute('line-height', '1.35');
             body.setAttribute('color', '#cbd5e1');
             body.setAttribute('position', '-0.52 0.11 0.01');
             body.setAttribute('align', 'left');
@@ -2273,7 +2453,15 @@ export class ADHSSimulation {
         }
     }
 
-    // --- Supermarkt-Ambience (Loop) ---
+    // =============================================================
+    // Supermarkt-Ambience (Loop)
+    // Ziel: ein durchgehender Hintergrundteppich, der „immer da“ ist,
+    // ähnlich wie der Prof-Sound im Hörsaal.
+    // Umsetzung:
+    // 1) Wenn in der Szene vorhanden: A-Frame <a-entity sound> nutzen
+    // 2) Fallback: WebAudio Loop
+    // 3) Letzter Fallback: HTMLAudio
+    // =============================================================
     startSupermarketAmbience() {
         this.stopSupermarketAmbience();
 
@@ -2525,7 +2713,10 @@ export class ADHSSimulation {
         }, 40);
     }
 
-    // Ermöglicht Klick-Interaktionen (Desktop) auf A-Frame Entities mit .adhs-clickable
+    // =============================================================
+    // Desktop-Interaktion (nicht VR)
+
+    // =============================================================
     ensureMouseRayCursor() {
         if (this._mouseCursorEnsured) return;
 
@@ -2564,10 +2755,15 @@ export class ADHSSimulation {
                 this.handleUserGaveIn(meta, el);
             });
         } catch (e) {
-            // ignorieren
+            
         }
     }
 
+    // =============================================================
+    // User Event: "Nachgeben" (G / Klick auf Ablenkung)
+    // Effekt: Stress steigt, Progress sinkt, ggf. Prokrastination + Task-Pileup.
+    // Das ist bewusst „spürbar“, damit die Mechanik im Gefühl ankommt.
+    // =============================================================
     handleUserGaveIn(meta = {}, clickedEl = null) {
         if (!this.active || this.paused || this.distractionLevel <= 0) return;
 
@@ -2592,15 +2788,15 @@ export class ADHSSimulation {
 
         // Nachgeben -> Stress steigt ("Zeit weg", "schon wieder", etc.) - MIT SPIRALE
         const baseStressInc = (0.025 + 0.015 * level) * Math.max(0.5, Math.min(1.6, severity));
-        const stressInc = baseStressInc * this._giveInSpiralMultiplier;
+        const stressInc = baseStressInc * this._giveInSpiralMultiplier; // Kerneffekt: wiederholtes Nachgeben verstärkt Stress ("Spirale").
         this.stress = this.clamp01((this.stress || 0) + stressInc);
         this._stressPeak = Math.max(Number(this._stressPeak) || 0, Number(this.stress) || 0);
 
         // Zeitverlust berechnen und tracken
-        const timeWasted = Math.floor(2 + (3 * level) + (2 * severity)); // 2-12 Minuten
+        const timeWasted = Math.floor(2 + (3 * level) + (2 * severity)); // Modelliert "Zeit weg" (wird in der UI als Minuten angezeigt).
         this._totalTimeWasted += timeWasted * 60; // in Sekunden
 
-        // Screen Tint Effekt (Schuldgefühl visualisieren)
+        // Screen Tint Effekt (Schuldgefühl/"Mist!"-Moment sichtbar machen)
         this.createScreenTint(2500, '#ff4444');
 
         // Hyperfokus kann durch Interaktion abrupt abbrechen
@@ -2611,7 +2807,7 @@ export class ADHSSimulation {
         // Wenn man eigentlich arbeitet: Klick schubst in Prokrastination
         if (this.taskState === 'working' || this.taskState === 'hyperfocus') {
             const dur = 1800 + Math.random() * 2200 + 700 * severity;
-            this.setTaskState('procrastinating', dur);
+            this.setTaskState('procrastinating', dur); // Nachgeben unterbricht "Flow" → zurück in Prokrastination.
         }
 
         // Größere Progress-Strafe (deutlich spürbar)
@@ -2619,12 +2815,13 @@ export class ADHSSimulation {
             const t = this.getActiveTask();
             if (t) {
                 const dec = (0.025 + 0.02 * level) * (0.8 + 0.7 * severity) * this._giveInSpiralMultiplier;
-                t.progress = Math.max(0, (t.progress || 0) - dec);
+                t.progress = Math.max(0, (t.progress || 0) - dec); // Progress-Strafe: fühlt sich wie "zurückgeworfen" an.
             }
         } catch (e) {}
 
         // Aufgaben-Pile-Up: Bei Stress > 0.5 spawnen zusätzliche Mini-Aufgaben
         if (this.stress > 0.5 && Math.random() < 0.35) {
+            // "Pile-Up": Unter Stress entstehen zusätzliche Kleinst-Aufgaben (Overwhelm-Effekt).
             const pileUpTasks = [
                 { text: 'Jetzt auch noch Mails checken', kind: 'email', progress: 0 },
                 { text: 'Termin bestätigen', kind: 'planning', progress: 0 },
@@ -2656,6 +2853,11 @@ export class ADHSSimulation {
         this.updateVrHud();
     }
 
+    // =============================================================
+    // User Event: "Refocus" (R)
+    // Effekt: Ablenkungen werden aufgeräumt, Stress sinkt, kurzer Schutz vor neuen
+    // Unterbrechungen + Rückkehr zu working (Wiedereinstieg ist trotzdem teuer).
+    // =============================================================
     handleUserRefocus() {
         if (!this.active || this.paused || this.distractionLevel <= 0) return;
 
@@ -2673,12 +2875,12 @@ export class ADHSSimulation {
         const shieldJitterByLevel = [0, 1500, 1500, 1000];
         const shieldBase = shieldBaseByLevel[level] || 6000;
         const shieldJitter = shieldJitterByLevel[level] || 1500;
-        this._refocusShieldUntil = now + shieldBase + Math.random() * shieldJitter;
+        this._refocusShieldUntil = now + shieldBase + Math.random() * shieldJitter; // Soft-Shield: in dieser Zeit werden neue Reize eher unterdrückt.
 
         // VERBESSERT: Längerer "Hard Lock"
         const lockBaseByLevel = [0, 3500, 2800, 2200];
         const lockJitterByLevel = [0, 500, 400, 300];
-        this._refocusHardLockUntil = now + (lockBaseByLevel[level] || 2500) + Math.random() * (lockJitterByLevel[level] || 400);
+        this._refocusHardLockUntil = now + (lockBaseByLevel[level] || 2500) + Math.random() * (lockJitterByLevel[level] || 400); // Hard-Lock: kurzzeitige "Ruhe", damit Refocus nicht sofort wieder kippt.
 
         // Focus Tunnel Effekt (visuelles Feedback)
         const tunnelDuration = 5000 + (this._refocusStreak || 0) * 1000; // länger bei Streak
@@ -2688,20 +2890,20 @@ export class ADHSSimulation {
         try { this.createScreenTint(700, '#22c55e'); } catch (e) {}
 
         // Sofortiges Aufräumen: aktuelle Ablenkungen "weg"
-        try { this.clearAllDistractions(); } catch (e) {}
+        try { this.clearAllDistractions(); } catch (e) {} // UI/VR wird sofort "ruhiger".
 
         // VERBESSERT: Stress sinkt drastisch (-20% statt -8%)
         const stressReduction = 0.15 + (0.05 * (this._refocusStreak || 0) / 5); // mehr bei Streak
-        this.stress = this.clamp01((this.stress || 0) - stressReduction);
+        this.stress = this.clamp01((this.stress || 0) - stressReduction); // Kerneffekt: Stress-Reset durch bewusstes Zurückfokussieren.
         this._stressPeak = Math.max(Number(this._stressPeak) || 0, Number(this.stress) || 0);
         
         const reentryByLevel = [0, 1100, 1600, 2200];
-        this._reentryUntil = now + (reentryByLevel[level] || 1400) + Math.random() * 500;
-        this.setTaskState('working', 0);
+        this._reentryUntil = now + (reentryByLevel[level] || 1400) + Math.random() * 500; // Wiedereinstieg bleibt "teuer", auch wenn man Refocus drückt.
+        this.setTaskState('working', 0); // Zurück zur Aufgabe.
 
         // VERBESSERT: Längerer Focus Mode
         const focusDurByLevel = [0, 12000, 10000, 8000];
-        this._focusModeUntil = now + (focusDurByLevel[level] || 10000);
+        this._focusModeUntil = now + (focusDurByLevel[level] || 10000); // Nach Refocus kurz bessere "Stabilität".
 
         // Stress-Spirale zurücksetzen bei erfolgreichem Refocus
         this._giveInCount = 0;
@@ -2730,7 +2932,7 @@ export class ADHSSimulation {
                     const levelScale = (level === 3) ? 0.75 : (level === 2) ? 0.90 : 1.0;
                     const streakBonus = 1.0 + (this._refocusStreak - 1) * 0.15; // +15% pro Streak
                     const bonus = (0.03 + Math.random() * 0.05) * levelScale * streakBonus;
-                    t.progress = Math.min(1, (t.progress || 0) + bonus);
+                    t.progress = Math.min(1, (t.progress || 0) + bonus); // Belohnung: "Es lohnt sich", wieder reinzugehen.
                 }
             } catch (e) {}
 

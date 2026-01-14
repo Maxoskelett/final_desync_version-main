@@ -30,14 +30,14 @@ body {
 	align-items: center;
 	justify-content: center;
 	-webkit-font-smoothing: antialiased;
-	padding: 2rem 1rem;
+	padding: 2rem 1rem; /* Landing: zentriert, mit etwas „Luft“ */
 }
 
 /* Scene-Pages sollen den Viewport füllen (A-Frame) */
 body.scene-page {
 	padding: 0;
 	display: block;
-	background: #000;
+	background: #000; /* Scene-Pages: A-Frame Canvas im Fullscreen */
 }
 
 body.scene-page main,

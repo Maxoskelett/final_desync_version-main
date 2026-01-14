@@ -84,6 +84,7 @@
 
 		<h2 class="scenarios-title">Umgebung wählen</h2>
 		<div class="scenarios">
+			<!-- data-href wird in app.js als Navigation genutzt (ohne inline onclick) -->
 			<button class="scenario-btn" data-href="hoersaal.html" aria-label="Hörsaal" type="button">
 				<span class="scenario-icon" aria-hidden="true">🎓</span>
 				Hörsaal
@@ -106,6 +107,7 @@
 		</footer>
 	</div>
 
+	<!-- Modal: app.js toggelt aria-hidden + Klassen (öffnen/schließen) -->
 	<div class="modal" id="edu-modal" aria-hidden="true">
 		<div class="modal-backdrop" data-close="true"></div>
 		<div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="edu-title">
@@ -124,11 +126,11 @@
 		</div>
 	</div>
 
-	<!-- A-Frame wird global geladen (Inspector optional). Die Simulation läuft in den Scene-Pages. -->
+	<!-- Scripts: Landing nutzt nur das UI aus app.js; die eigentliche Simulation läuft in den Scene-Pages. -->
 	<script src="https://aframe.io/releases/1.7.1/aframe.min.js" defer></script>
     <script src="https://aframe.io/releases/1.7.1/aframe-inspector.min.js" defer></script>
 	<script src="cc_sdk.min.js" defer></script>
-	<script src="vr.js" defer></script>
+	<script src="vr.js" defer></script> <!-- Start-VR Helper (wird primär in den Scene-Pages genutzt) -->
 	<!-- Unified App Entry: Landing-UI + (optional) Simulation-Setup -->
 	<script type="module" src="app.js"></script>
 </body>

@@ -31,7 +31,7 @@ h2 { font-size: 1.8rem; font-weight: 600; color: var(--text-primary); text-align
 /* Info Section */
 .info-section {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* responsive: passt Spalten automatisch an */
 	gap: 2rem;
 	margin: 3rem 0;
 	padding: 0 1rem;
@@ -91,7 +91,7 @@ h2 { font-size: 1.8rem; font-weight: 600; color: var(--text-primary); text-align
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
-	cursor: pointer;
+	cursor: pointer; /* klare Click-Affordanzen */
 	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 	font-size: 1.4rem;
 	font-weight: 600;

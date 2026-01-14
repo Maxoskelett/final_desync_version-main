@@ -13,10 +13,61 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!scene) return;
 
   const vrBtn = document.getElementById('start-vr');
-  if (vrBtn) vrBtn.addEventListener('click', () => enterVr(scene));
+  if (vrBtn) {
+    vrBtn.addEventListener('click', () => {
+      enterVr(scene); // startet WebXR-Session (wenn verfügbar)
+
+      // Fallback: Starthinweis direkt beim Klick anstoßen (enter-vr Event kommt je nach Browser verzögert).
+      try {
+        if (window.adhs && typeof window.adhs.showVrStartHint === 'function') {
+          setTimeout(() => window.adhs.showVrStartHint({ autoHideMs: 6500 }), 250);
+        }
+      } catch (e) {}
+
+      // Desktop-Mouselook: PointerLock sofort im Click-Handler anfordern.
+      // Dadurch verschwindet der Mauszeiger und Umschauen klappt „überall“.
+      if (hasPointerLock()) requestPointerLockSoon(scene); // Desktop: Maus „capturen“ für Mouselook
+    });
+  }
 
   if (hasPointerLock()) enablePointerLock(scene);
+
+  // Sauberer Rückweg: wenn VR endet, PointerLock lösen.
+  scene.addEventListener('exit-vr', () => {
+    try {
+      if (document.exitPointerLock) document.exitPointerLock();
+    } catch (e) {
+      // ignorieren
+    }
+  });
 });
+
+function requestPointerLockSoon(scene) {
+  const tryLock = () => {
+    if (!scene?.canvas) return false;
+    if (document.pointerLockElement === scene.canvas) return true;
+    if (!scene.canvas.requestPointerLock) return false;
+    try {
+      // PointerLock braucht meist einen User-Click (wir sind hier im Click-Handler / kurz danach).
+      scene.canvas.requestPointerLock();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  // Canvas existiert erst nach renderstart.
+  if (scene?.hasLoaded && scene.canvas) {
+    tryLock();
+    return;
+  }
+
+  scene?.addEventListener?.('renderstart', () => {
+    tryLock();
+    setTimeout(tryLock, 50);
+    setTimeout(tryLock, 250);
+  }, { once: true });
+}
 
 // -------------------------------------------------------------
 // Optionales Komfort-/Experiment-Feature:
@@ -88,10 +139,11 @@ if (typeof AFRAME !== 'undefined' && AFRAME?.registerComponent) {
 
 function enterVr(scene) {
   // Startet WebXR (wenn verfügbar) – bevorzugt über die aktuelle Scene.
+  // Hinweis: In Desktop ohne Headset kann das trotzdem „VR Mode“ auslösen (Magic Window).
   try {
     if (scene?.enterVR) {
       scene.enterVR();
-      tryPlayDomOverlayAmbience();
+      tryPlayDomOverlayAmbience(); // Audio starten, weil hier die Autoplay-Policy „entsperrt“ ist
       return;
     }
     if (AFRAME?.scenes?.[0]) {
